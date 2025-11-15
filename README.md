@@ -1,1 +1,188 @@
 # nf-scrnaseq
+
+A Nextflow pipeline for single-cell RNA-seq analysis using Scanpy.
+
+## Overview
+
+This pipeline performs quality control and analysis of single-cell RNA-sequencing data. Currently implements:
+
+- **Data Import**: Support for multiple input formats (10X Genomics, H5AD, CSV)
+- **Quality Control**: Cell and gene filtering based on QC metrics
+- **QC Visualization**: Comprehensive plots and reports
+
+## Quick Start
+
+### Prerequisites
+
+- Nextflow >= 22.10.0
+- Docker, Singularity, or Conda
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/salzcamino/nf-scrnaseq.git
+cd nf-scrnaseq
+
+# Run with test data (coming soon)
+nextflow run main.nf -profile test,docker
+```
+
+### Basic Usage
+
+```bash
+# Run with 10X Genomics data
+nextflow run main.nf \
+  --input /path/to/10x/folder \
+  -profile docker
+
+# Run with H5AD file
+nextflow run main.nf \
+  --input /path/to/data.h5ad \
+  --input_format h5ad \
+  -profile docker
+
+# Run with custom QC parameters
+nextflow run main.nf \
+  --input /path/to/data \
+  --min_genes 300 \
+  --max_genes 5000 \
+  --max_pct_mt 10 \
+  -profile docker
+```
+
+## Input Formats
+
+The pipeline supports the following input formats:
+
+1. **10X Genomics**: Directory containing `matrix.mtx`, `genes.tsv`, `barcodes.tsv`
+2. **H5AD**: AnnData HDF5 format (`.h5ad`)
+3. **10X H5**: 10X HDF5 format (`.h5`)
+4. **CSV/TSV**: Gene expression matrix (genes as rows, cells as columns)
+
+## Parameters
+
+### Required
+
+| Parameter | Description |
+|-----------|-------------|
+| `--input` | Path to input data (directory or file) |
+
+### QC Filtering
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--min_genes` | 200 | Minimum genes per cell |
+| `--min_cells` | 3 | Minimum cells per gene |
+| `--max_genes` | 2500 | Maximum genes per cell |
+| `--max_counts` | null | Maximum counts per cell (auto if null) |
+| `--max_pct_mt` | 5 | Maximum mitochondrial percentage |
+| `--exclude_mt` | false | Exclude mitochondrial genes |
+| `--exclude_ribo` | false | Exclude ribosomal genes |
+
+### Output
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--outdir` | ./results | Output directory |
+| `--publish_dir_mode` | copy | Publishing mode (copy/symlink/move) |
+
+## Output Structure
+
+```
+results/
+├── import/
+│   ├── raw_data.h5ad              # Raw imported data
+│   └── import_summary.txt         # Import statistics
+└── qc/
+    ├── qc_filtered.h5ad          # QC-filtered data
+    ├── qc_metrics.csv            # QC metrics per cell
+    ├── qc_plots.pdf              # QC visualization plots
+    └── qc_summary.txt            # QC filtering summary
+```
+
+## Profiles
+
+The pipeline supports multiple execution profiles:
+
+- `docker`: Use Docker containers (recommended)
+- `singularity`: Use Singularity containers
+- `conda`: Use Conda environments
+- `test`: Run with test dataset
+
+Example:
+```bash
+nextflow run main.nf --input data/ -profile docker
+```
+
+## QC Metrics
+
+The pipeline calculates and visualizes the following QC metrics:
+
+- **n_genes_by_counts**: Number of genes detected per cell
+- **total_counts**: Total UMI counts per cell
+- **pct_counts_mt**: Percentage of mitochondrial gene counts
+- **pct_counts_ribo**: Percentage of ribosomal gene counts
+
+## Visualization
+
+The QC module generates comprehensive plots including:
+
+- Distribution histograms for counts, genes, and MT percentage
+- Violin plots for key metrics
+- Scatter plots showing relationships between metrics
+- Threshold lines indicating filtering cutoffs
+
+## Pipeline Status
+
+**Current Version**: 0.1.0
+
+**Implemented**:
+- Data import (10X, H5AD, CSV formats)
+- Quality control and filtering
+- QC visualization
+
+**Coming Soon**:
+- Normalization and scaling
+- Highly variable gene selection
+- Dimensionality reduction (PCA, UMAP, t-SNE)
+- Clustering
+- Cell type annotation
+- Differential expression analysis
+
+## Requirements
+
+### Software Dependencies
+
+The pipeline uses the following key packages:
+
+- scanpy >= 1.9.3
+- anndata >= 0.9.2
+- pandas >= 2.0.3
+- matplotlib >= 3.7.2
+- seaborn >= 0.12.2
+
+Full dependencies are specified in `environment.yml`.
+
+## Help
+
+For detailed help message:
+
+```bash
+nextflow run main.nf --help
+```
+
+## Citation
+
+If you use this pipeline, please cite:
+
+- **Nextflow**: Di Tommaso, P., et al. (2017). Nextflow enables reproducible computational workflows. Nature Biotechnology, 35(4), 316-319.
+- **Scanpy**: Wolf, F.A., et al. (2018). SCANPY: large-scale single-cell gene expression data analysis. Genome Biology, 19(1), 15.
+
+## License
+
+MIT License
+
+## Contact
+
+For issues and questions, please use the GitHub issue tracker.
