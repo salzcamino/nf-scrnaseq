@@ -74,6 +74,10 @@ process QC_FILTER {
     ]].copy()
     qc_metrics['status'] = 'raw'
 
+    # Parse max_counts parameter
+    max_counts_str = '!{max_counts}'
+    max_counts_val = np.inf if max_counts_str == 'null' else float(max_counts_str)
+
     # Create QC plots before filtering
     print("Creating QC plots...")
     with PdfPages('qc_plots.pdf') as pdf:
@@ -85,9 +89,9 @@ process QC_FILTER {
         axes[0, 0].set_xlabel('Total counts')
         axes[0, 0].set_ylabel('Number of cells')
         axes[0, 0].set_title('Total counts per cell')
-        axes[0, 0].axvline(x=!{max_counts if max_counts != 'null' else 'np.inf'},
-                          color='red', linestyle='--', label='Max threshold')
-        axes[0, 0].legend()
+        if max_counts_val != np.inf:
+            axes[0, 0].axvline(x=max_counts_val, color='red', linestyle='--', label='Max threshold')
+            axes[0, 0].legend()
 
         # Genes per cell
         axes[0, 1].hist(adata.obs['n_genes_by_counts'], bins=50, edgecolor='black')
@@ -157,8 +161,7 @@ process QC_FILTER {
     sc.pp.filter_cells(adata, min_genes=!{min_genes})
     adata = adata[adata.obs['n_genes_by_counts'] < !{max_genes}, :].copy()
 
-    # Max counts filter
-    max_counts_val = !{max_counts if max_counts != 'null' else 'np.inf'}
+    # Max counts filter (max_counts_val already parsed above)
     if max_counts_val != np.inf:
         print(f"Filtering cells with >{max_counts_val} counts...")
         adata = adata[adata.obs['total_counts'] < max_counts_val, :].copy()
