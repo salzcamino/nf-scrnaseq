@@ -192,6 +192,30 @@ Dependencies can be satisfied in multiple ways:
 
 3. **Singularity**: Convert the Docker image to Singularity format
 
+## Troubleshooting
+
+### WSL (Windows Subsystem for Linux) Issues
+
+If you're running on WSL and encounter Python errors like "Could not find platform independent libraries" or "ModuleNotFoundError: No module named 'io'":
+
+**Solution**: The pipeline is already configured to use `$HOME/.nextflow-conda-cache` for conda environments, which is on the Linux filesystem. If you still have issues:
+
+1. Make sure you're running the pipeline from a Linux directory (not `/mnt/c/...`)
+2. Or, manually set the conda cache directory:
+   ```bash
+   export NXF_CONDA_CACHEDIR=$HOME/.nextflow-conda-cache
+   nextflow run main.nf -profile test,conda
+   ```
+
+3. Install mamba for faster and more reliable conda environment creation:
+   ```bash
+   conda install -n base -c conda-forge mamba
+   ```
+
+### Conda Environment Creation is Slow
+
+The first run will take longer as conda needs to download and install all dependencies. Subsequent runs will use the cached environment. Using mamba (recommended) significantly speeds this up.
+
 ## Help
 
 For detailed help message:
