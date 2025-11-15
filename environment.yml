@@ -31,3 +31,16 @@ dependencies:
   - scikit-learn>=1.3
   - numba>=0.57
   - umap-learn>=0.5
+
+  # Doublet detection
+  - scrublet>=0.2.3
+
+  # R and R packages
+  - r-base>=4.2
+  - r-essentials
+  - bioconductor-singlecellexperiment
+  - bioconductor-scdblfinder
+  - bioconductor-celda  # Contains DecontX
+  - r-soupx
+  - r-seurat
+  - rpy2>=3.5  # Python-R interface

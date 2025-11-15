@@ -1,7 +1,7 @@
 FROM python:3.10-slim
 
 LABEL maintainer="salzcamino@gmail.com"
-LABEL description="Docker container for nf-scrnaseq pipeline with scanpy"
+LABEL description="Docker container for nf-scrnaseq pipeline with scanpy and doublet detection"
 
 # Install system dependencies
 RUN apt-get update && \
@@ -27,7 +27,12 @@ RUN pip install --no-cache-dir \
     leidenalg==0.10.2 \
     python-igraph==0.11.3 \
     scikit-learn==1.3.2 \
-    umap-learn==0.5.5
+    umap-learn==0.5.5 \
+    scrublet==0.2.3 \
+    numba==0.58.1
+
+# Note: R-based tools (scDblFinder, DecontX, SoupX) are available only in the conda profile
+# This Docker image supports Python-based doublet detection (Scrublet) and ambient RNA estimation
 
 # Set working directory
 WORKDIR /work

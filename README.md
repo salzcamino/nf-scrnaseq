@@ -8,6 +8,7 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 
 - **Data Import**: Support for multiple input formats (10X Genomics, H5AD, CSV)
 - **Quality Control**: Cell and gene filtering based on QC metrics
+- **Doublet Detection**: Scrublet, scDblFinder, and decontamination with DecontX
 - **QC Visualization**: Comprehensive plots and reports
 
 ## Quick Start
@@ -86,6 +87,19 @@ The pipeline supports the following input formats:
 | `--exclude_mt` | false | Exclude mitochondrial genes |
 | `--exclude_ribo` | false | Exclude ribosomal genes |
 
+### Doublet Detection
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_doublet_detection` | true | Enable doublet detection |
+| `--run_scrublet` | true | Run Scrublet (Python-based, fast) |
+| `--run_scdblfinder` | false | Run scDblFinder (R-based, slower, conda only) |
+| `--run_decontx` | false | Run DecontX contamination estimation (R-based, conda only) |
+| `--scrublet_threshold` | auto | Doublet score threshold (auto or numeric) |
+| `--expected_doublet_rate` | 0.06 | Expected doublet rate (typically 0.05-0.1) |
+
+**Note**: R-based tools (scDblFinder, DecontX) are only available when using the `conda` profile. The Docker image supports Python-based Scrublet and simple ambient RNA estimation.
+
 ### Output
 
 | Parameter | Default | Description |
@@ -100,11 +114,16 @@ results/
 ├── import/
 │   ├── raw_data.h5ad              # Raw imported data
 │   └── import_summary.txt         # Import statistics
-└── qc/
-    ├── qc_filtered.h5ad          # QC-filtered data
-    ├── qc_metrics.csv            # QC metrics per cell
-    ├── qc_plots.pdf              # QC visualization plots
-    └── qc_summary.txt            # QC filtering summary
+├── qc/
+│   ├── qc_filtered.h5ad          # QC-filtered data
+│   ├── qc_metrics.csv            # QC metrics per cell
+│   ├── qc_plots.pdf              # QC visualization plots
+│   └── qc_summary.txt            # QC filtering summary
+└── doublet_decontam/
+    ├── doublet_scored.h5ad       # Data with doublet scores
+    ├── doublet_scores.csv        # Doublet scores per cell
+    ├── doublet_plots.pdf         # Doublet score visualizations
+    └── doublet_summary.txt       # Doublet detection summary
 ```
 
 ## Profiles
@@ -142,6 +161,33 @@ The pipeline calculates and visualizes the following QC metrics:
 - **pct_counts_mt**: Percentage of mitochondrial gene counts
 - **pct_counts_ribo**: Percentage of ribosomal gene counts
 
+## Doublet Detection and Decontamination
+
+The pipeline includes comprehensive doublet detection and contamination estimation:
+
+### Doublet Detection Methods
+
+- **Scrublet** (Python-based, default enabled): Simulates artificial doublets and identifies cells with high doublet scores
+- **scDblFinder** (R-based, optional): Uses the scDblFinder Bioconductor package for doublet detection
+  - Slower but can be more accurate in some cases
+  - Requires conda profile
+
+### Contamination Estimation
+
+- **DecontX** (R-based, optional): Estimates ambient RNA contamination from the Celda package
+  - Requires conda profile
+- **Simple ambient RNA estimation**: Python-based correlation with low-count cells
+  - Always included as a backup method
+
+### Outputs
+
+The doublet detection module generates:
+- Doublet scores for each cell (from enabled methods)
+- Binary doublet predictions
+- Contamination scores
+- Visualization plots showing score distributions and relationships with QC metrics
+- Summary statistics
+
 ## Visualization
 
 The QC module generates comprehensive plots including:
@@ -158,6 +204,8 @@ The QC module generates comprehensive plots including:
 **Implemented**:
 - Data import (10X, H5AD, CSV formats)
 - Quality control and filtering
+- Doublet detection (Scrublet, scDblFinder)
+- Contamination estimation (DecontX, ambient RNA)
 - QC visualization
 
 **Coming Soon**:
@@ -174,11 +222,21 @@ The QC module generates comprehensive plots including:
 
 The pipeline uses the following key packages:
 
+**Python packages**:
 - scanpy >= 1.9.3
 - anndata >= 0.9.2
-- pandas >= 2.0.3
-- matplotlib >= 3.7.2
-- seaborn >= 0.12.2
+- pandas >= 2.0
+- matplotlib >= 3.7
+- seaborn >= 0.12
+- scrublet >= 0.2.3
+
+**R packages (conda profile only)**:
+- r-base >= 4.2
+- bioconductor-singlecellexperiment
+- bioconductor-scdblfinder
+- bioconductor-celda (DecontX)
+- r-soupx
+- rpy2 >= 3.5 (Python-R interface)
 
 ### Container/Environment Options
 
