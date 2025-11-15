@@ -78,6 +78,10 @@ process QC_FILTER {
     max_counts_str = '!{max_counts}'
     max_counts_val = np.inf if max_counts_str == 'null' else float(max_counts_str)
 
+    # Parse boolean parameters
+    exclude_mt = '!{exclude_mt}'.lower() == 'true'
+    exclude_ribo = '!{exclude_ribo}'.lower() == 'true'
+
     # Create QC plots before filtering
     print("Creating QC plots...")
     with PdfPages('qc_plots.pdf') as pdf:
@@ -175,12 +179,12 @@ process QC_FILTER {
     sc.pp.filter_genes(adata, min_cells=!{min_cells})
 
     # Exclude MT genes if requested
-    if !{exclude_mt}:
+    if exclude_mt:
         print("Removing mitochondrial genes...")
         adata = adata[:, ~adata.var['mt']].copy()
 
     # Exclude ribosomal genes if requested
-    if !{exclude_ribo}:
+    if exclude_ribo:
         print("Removing ribosomal genes...")
         adata = adata[:, ~adata.var['ribo']].copy()
 
@@ -211,8 +215,8 @@ process QC_FILTER {
         if max_counts_val != np.inf:
             f.write(f"  Max counts per cell: {max_counts_val}\\n")
         f.write(f"  Max MT percentage: {!{max_pct_mt}}%\\n")
-        f.write(f"  Exclude MT genes: {!{exclude_mt}}\\n")
-        f.write(f"  Exclude ribo genes: {!{exclude_ribo}}\\n\\n")
+        f.write(f"  Exclude MT genes: {exclude_mt}\\n")
+        f.write(f"  Exclude ribo genes: {exclude_ribo}\\n\\n")
         f.write(f"Filtered data:\\n")
         f.write(f"  Cells: {n_cells_filtered:,}\\n")
         f.write(f"  Genes: {n_genes_filtered:,}\\n\\n")
