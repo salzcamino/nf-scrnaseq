@@ -13,8 +13,8 @@ process IMPORT_DATA {
     path "import_summary.txt", emit: summary
     path "versions.yml", emit: versions
 
-    script:
-    """
+    shell:
+    '''
     #!/usr/bin/env python3
 
     import sys
@@ -28,8 +28,8 @@ process IMPORT_DATA {
     sc.settings.verbosity = 3
 
     # Determine input format
-    input_path = Path('${input_data}')
-    format_type = '${input_format}'
+    input_path = Path('!{input_data}')
+    format_type = '!{input_format}'
 
     print(f"Input path: {input_path}")
     print(f"Format type: {format_type}")
@@ -107,12 +107,12 @@ process IMPORT_DATA {
         yaml.dump(versions, f)
 
     print("Data import completed successfully!")
-    """
+    '''
 
     stub:
-    """
+    '''
     touch raw_data.h5ad
     touch import_summary.txt
     echo "IMPORT_DATA:" > versions.yml
-    """
+    '''
 }

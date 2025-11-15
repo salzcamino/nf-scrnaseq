@@ -21,8 +21,8 @@ process QC_FILTER {
     path "qc_summary.txt", emit: summary
     path "versions.yml", emit: versions
 
-    script:
-    """
+    shell:
+    '''
     #!/usr/bin/env python3
 
     import sys
@@ -41,7 +41,7 @@ process QC_FILTER {
 
     # Load data
     print("Loading data...")
-    adata = sc.read_h5ad('${adata}')
+    adata = sc.read_h5ad('!{adata}')
     n_cells_raw = adata.n_obs
     n_genes_raw = adata.n_vars
 
@@ -85,7 +85,7 @@ process QC_FILTER {
         axes[0, 0].set_xlabel('Total counts')
         axes[0, 0].set_ylabel('Number of cells')
         axes[0, 0].set_title('Total counts per cell')
-        axes[0, 0].axvline(x=${max_counts if max_counts != 'null' else 'np.inf'},
+        axes[0, 0].axvline(x=!{max_counts if max_counts != 'null' else 'np.inf'},
                           color='red', linestyle='--', label='Max threshold')
         axes[0, 0].legend()
 
@@ -94,8 +94,8 @@ process QC_FILTER {
         axes[0, 1].set_xlabel('Number of genes')
         axes[0, 1].set_ylabel('Number of cells')
         axes[0, 1].set_title('Genes per cell')
-        axes[0, 1].axvline(x=${min_genes}, color='red', linestyle='--', label='Min threshold')
-        axes[0, 1].axvline(x=${max_genes}, color='red', linestyle='--', label='Max threshold')
+        axes[0, 1].axvline(x=!{min_genes}, color='red', linestyle='--', label='Min threshold')
+        axes[0, 1].axvline(x=!{max_genes}, color='red', linestyle='--', label='Max threshold')
         axes[0, 1].legend()
 
         # MT percentage
@@ -103,7 +103,7 @@ process QC_FILTER {
         axes[1, 0].set_xlabel('Mitochondrial %')
         axes[1, 0].set_ylabel('Number of cells')
         axes[1, 0].set_title('Mitochondrial percentage')
-        axes[1, 0].axvline(x=${max_pct_mt}, color='red', linestyle='--', label='Max threshold')
+        axes[1, 0].axvline(x=!{max_pct_mt}, color='red', linestyle='--', label='Max threshold')
         axes[1, 0].legend()
 
         # Scatter: counts vs genes
@@ -153,31 +153,31 @@ process QC_FILTER {
     print("Applying filters...")
 
     # Cell filtering
-    print(f"Filtering cells with <{${min_genes}} or >{${max_genes}} genes...")
-    sc.pp.filter_cells(adata, min_genes=${min_genes})
-    adata = adata[adata.obs['n_genes_by_counts'] < ${max_genes}, :].copy()
+    print(f"Filtering cells with <{!{min_genes}} or >{!{max_genes}} genes...")
+    sc.pp.filter_cells(adata, min_genes=!{min_genes})
+    adata = adata[adata.obs['n_genes_by_counts'] < !{max_genes}, :].copy()
 
     # Max counts filter
-    max_counts_val = ${max_counts if max_counts != 'null' else 'np.inf'}
+    max_counts_val = !{max_counts if max_counts != 'null' else 'np.inf'}
     if max_counts_val != np.inf:
         print(f"Filtering cells with >{max_counts_val} counts...")
         adata = adata[adata.obs['total_counts'] < max_counts_val, :].copy()
 
     # MT percentage filter
-    print(f"Filtering cells with >{${max_pct_mt}}% MT genes...")
-    adata = adata[adata.obs['pct_counts_mt'] < ${max_pct_mt}, :].copy()
+    print(f"Filtering cells with >{!{max_pct_mt}}% MT genes...")
+    adata = adata[adata.obs['pct_counts_mt'] < !{max_pct_mt}, :].copy()
 
     # Gene filtering
-    print(f"Filtering genes expressed in <{${min_cells}} cells...")
-    sc.pp.filter_genes(adata, min_cells=${min_cells})
+    print(f"Filtering genes expressed in <{!{min_cells}} cells...")
+    sc.pp.filter_genes(adata, min_cells=!{min_cells})
 
     # Exclude MT genes if requested
-    if ${exclude_mt}:
+    if !{exclude_mt}:
         print("Removing mitochondrial genes...")
         adata = adata[:, ~adata.var['mt']].copy()
 
     # Exclude ribosomal genes if requested
-    if ${exclude_ribo}:
+    if !{exclude_ribo}:
         print("Removing ribosomal genes...")
         adata = adata[:, ~adata.var['ribo']].copy()
 
@@ -202,14 +202,14 @@ process QC_FILTER {
         f.write(f"  Cells: {n_cells_raw:,}\\n")
         f.write(f"  Genes: {n_genes_raw:,}\\n\\n")
         f.write(f"Filtering parameters:\\n")
-        f.write(f"  Min genes per cell: {${min_genes}}\\n")
-        f.write(f"  Max genes per cell: {${max_genes}}\\n")
-        f.write(f"  Min cells per gene: {${min_cells}}\\n")
+        f.write(f"  Min genes per cell: {!{min_genes}}\\n")
+        f.write(f"  Max genes per cell: {!{max_genes}}\\n")
+        f.write(f"  Min cells per gene: {!{min_cells}}\\n")
         if max_counts_val != np.inf:
             f.write(f"  Max counts per cell: {max_counts_val}\\n")
-        f.write(f"  Max MT percentage: {${max_pct_mt}}%\\n")
-        f.write(f"  Exclude MT genes: {${exclude_mt}}\\n")
-        f.write(f"  Exclude ribo genes: {${exclude_ribo}}\\n\\n")
+        f.write(f"  Max MT percentage: {!{max_pct_mt}}%\\n")
+        f.write(f"  Exclude MT genes: {!{exclude_mt}}\\n")
+        f.write(f"  Exclude ribo genes: {!{exclude_ribo}}\\n\\n")
         f.write(f"Filtered data:\\n")
         f.write(f"  Cells: {n_cells_filtered:,}\\n")
         f.write(f"  Genes: {n_genes_filtered:,}\\n\\n")
@@ -231,14 +231,14 @@ process QC_FILTER {
         yaml.dump(versions, f)
 
     print("QC filtering completed successfully!")
-    """
+    '''
 
     stub:
-    """
+    '''
     touch qc_filtered.h5ad
     touch qc_metrics.csv
     touch qc_plots.pdf
     touch qc_summary.txt
     echo "QC_FILTER:" > versions.yml
-    """
+    '''
 }
