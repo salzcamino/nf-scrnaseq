@@ -103,7 +103,7 @@ process DOUBLET_DECONTAM {
             pandas2ri.activate()
 
             # Convert to SingleCellExperiment
-            ro.r('''
+            ro.r("""
             library(scDblFinder)
             library(SingleCellExperiment)
 
@@ -121,7 +121,7 @@ process DOUBLET_DECONTAM {
                 )
                 return(scores)
             }
-            ''')
+            """)
 
             # Run scDblFinder
             scdblfinder_results = ro.r['run_scdblfinder'](adata)
@@ -160,7 +160,7 @@ process DOUBLET_DECONTAM {
             anndata2ri.activate()
             pandas2ri.activate()
 
-            ro.r('''
+            ro.r("""
             library(celda)
             library(SingleCellExperiment)
 
@@ -177,7 +177,7 @@ process DOUBLET_DECONTAM {
                 )
                 return(scores)
             }
-            ''')
+            """)
 
             # Run DecontX
             decontx_results = ro.r['run_decontx'](adata)
