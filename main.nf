@@ -76,8 +76,8 @@ QC Parameters:
 """.stripIndent()
 
 // Import modules
-include { IMPORT_DATA } from './modules/local/import_data'
-include { QC_FILTER } from './modules/local/qc_filter'
+include { IMPORT_DATA } from './modules/local/import_data.nf'
+include { QC_FILTER } from './modules/local/qc_filter.nf'
 
 /*
 ========================================================================================
