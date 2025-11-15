@@ -24,7 +24,13 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 git clone https://github.com/salzcamino/nf-scrnaseq.git
 cd nf-scrnaseq
 
-# Run with test data (coming soon)
+# Build the Docker image (required for Docker profile)
+docker build -t nf-scrnaseq:latest .
+
+# OR, use Conda profile instead (no Docker build needed)
+# See Profiles section below
+
+# Run with test data
 nextflow run main.nf -profile test,docker
 ```
 
@@ -105,14 +111,21 @@ results/
 
 The pipeline supports multiple execution profiles:
 
-- `docker`: Use Docker containers (recommended)
-- `singularity`: Use Singularity containers
-- `conda`: Use Conda environments
-- `test`: Run with test dataset
+- **`docker`**: Use Docker containers (requires building image first: `docker build -t nf-scrnaseq:latest .`)
+- **`conda`**: Use Conda environments (recommended if Docker not available)
+- **`singularity`**: Use Singularity containers
+- **`test`**: Run with test dataset (combine with docker/conda, e.g., `-profile test,conda`)
 
-Example:
+Examples:
 ```bash
+# Using Docker (after building the image)
 nextflow run main.nf --input data/ -profile docker
+
+# Using Conda (no build required)
+nextflow run main.nf --input data/ -profile conda
+
+# Test with Conda profile
+nextflow run main.nf -profile test,conda
 ```
 
 ## QC Metrics
@@ -162,7 +175,22 @@ The pipeline uses the following key packages:
 - matplotlib >= 3.7.2
 - seaborn >= 0.12.2
 
-Full dependencies are specified in `environment.yml`.
+### Container/Environment Options
+
+Dependencies can be satisfied in multiple ways:
+
+1. **Docker**: Build the container using the provided `Dockerfile`
+   ```bash
+   docker build -t nf-scrnaseq:latest .
+   ```
+
+2. **Conda**: Use the provided `environment.yml`
+   ```bash
+   nextflow run main.nf -profile conda ...
+   ```
+   (Nextflow will automatically create the conda environment)
+
+3. **Singularity**: Convert the Docker image to Singularity format
 
 ## Help
 
