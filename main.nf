@@ -32,6 +32,14 @@ def helpMessage() {
       --exclude_mt         Exclude mitochondrial genes (default: false)
       --exclude_ribo       Exclude ribosomal genes (default: false)
 
+    Doublet detection options:
+      --run_doublet_detection  Run doublet detection (default: true)
+      --run_scrublet          Run Scrublet doublet detection (default: true)
+      --run_scdblfinder       Run scDblFinder (R-based, slower) (default: false)
+      --run_decontx           Run DecontX contamination estimation (default: false)
+      --scrublet_threshold    Scrublet threshold: 'auto' or numeric (default: auto)
+      --expected_doublet_rate Expected doublet rate (default: 0.06)
+
     Output options:
       --outdir             Output directory (default: ./results)
       --publish_dir_mode   Publishing mode: 'copy', 'symlink', 'move' (default: copy)
@@ -73,11 +81,18 @@ QC Parameters:
   Max counts   : ${params.max_counts ?: 'auto'}
   Max MT %     : ${params.max_pct_mt}
 -------------------------------------------------------
+Doublet Detection:
+  Enabled      : ${params.run_doublet_detection}
+  Scrublet     : ${params.run_scrublet}
+  scDblFinder  : ${params.run_scdblfinder}
+  DecontX      : ${params.run_decontx}
+-------------------------------------------------------
 """.stripIndent()
 
 // Import modules
 include { IMPORT_DATA } from './modules/local/import_data.nf'
 include { QC_FILTER } from './modules/local/qc_filter.nf'
+include { DOUBLET_DECONTAM } from './modules/local/doublet_decontam.nf'
 
 /*
 ========================================================================================
@@ -106,6 +121,18 @@ workflow {
         params.exclude_mt,
         params.exclude_ribo
     )
+
+    // Doublet detection and decontamination
+    if (params.run_doublet_detection) {
+        DOUBLET_DECONTAM(
+            QC_FILTER.out.adata,
+            params.run_scrublet,
+            params.run_scdblfinder,
+            params.run_decontx,
+            params.scrublet_threshold,
+            params.expected_doublet_rate
+        )
+    }
 }
 
 /*
