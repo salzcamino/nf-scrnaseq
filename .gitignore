@@ -1,0 +1,48 @@
+# Nextflow work directory
+work/
+
+# Nextflow output
+results/
+.nextflow/
+.nextflow.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv
+
+# R
+.Rhistory
+.RData
+.Rproj.user
+*.Rproj
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Conda
+.conda/
+
+# Singularity
+*.sif
+*.simg
+
+# Test data
+test_data/
+testing/
