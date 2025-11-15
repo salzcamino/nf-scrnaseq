@@ -60,7 +60,7 @@ if (!params.input) {
 // Print parameter summary
 log.info """
 =======================================================
-nf-scrnaseq v${manifest.version}
+nf-scrnaseq v${workflow.manifest.version}
 =======================================================
 Input Data     : ${params.input}
 Input Format   : ${params.input_format}
