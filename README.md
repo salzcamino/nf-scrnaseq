@@ -115,6 +115,9 @@ The pipeline supports multiple execution profiles:
 - **`conda`**: Use Conda environments (recommended if Docker not available)
 - **`singularity`**: Use Singularity containers
 - **`test`**: Run with test dataset (combine with docker/conda, e.g., `-profile test,conda`)
+  - Uses synthetic test data with 50 cells and 100 genes
+  - Automatically applies relaxed QC thresholds (min_genes=10, max_genes=100, min_cells=1)
+  - Test data is intentionally sparse to enable quick validation
 
 Examples:
 ```bash
@@ -124,9 +127,11 @@ nextflow run main.nf --input data/ -profile docker
 # Using Conda (no build required)
 nextflow run main.nf --input data/ -profile conda
 
-# Test with Conda profile
+# Test with Conda profile (uses adjusted QC parameters automatically)
 nextflow run main.nf -profile test,conda
 ```
+
+**Note**: For real scRNA-seq data, use the default QC parameters (min_genes=200, max_genes=2500) which are appropriate for typical datasets.
 
 ## QC Metrics
 
