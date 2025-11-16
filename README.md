@@ -272,9 +272,10 @@ The pipeline supports multiple execution profiles:
 - **`conda`**: Use Conda environments (recommended if Docker not available)
 - **`singularity`**: Use Singularity containers
 - **`test`**: Run with test dataset (combine with docker/conda, e.g., `-profile test,conda`)
-  - Uses synthetic test data with 50 cells and 100 genes
-  - Automatically applies relaxed QC thresholds (min_genes=10, max_genes=100, min_cells=1)
-  - Test data is intentionally sparse to enable quick validation
+  - Uses realistic PBMC test data with 200 cells and 105 genes
+  - Includes real gene symbols (T cell, B cell, Monocyte, NK cell markers)
+  - Ground truth cell types for validation (`cell_types_ground_truth.csv`)
+  - Enables full pipeline testing including cell type annotation
 
 Examples:
 ```bash
@@ -288,7 +289,7 @@ nextflow run main.nf --input data/ -profile conda
 nextflow run main.nf -profile test,conda
 ```
 
-**Note**: For real scRNA-seq data, use the default QC parameters (min_genes=200, max_genes=2500) which are appropriate for typical datasets.
+**Note**: For real scRNA-seq data, use the default QC parameters (min_genes=200, max_genes=2500) which are appropriate for typical datasets. The test data uses smaller thresholds due to the reduced gene set.
 
 ## QC Metrics
 
