@@ -41,6 +41,10 @@ dependencies:
     - harmonypy>=0.0.9
     - bbknn>=1.6.0
     - cellphonedb>=5.0.0
+    - scanorama>=1.7.0
+
+  # Optional: scvi-tools for advanced integration (install separately if needed)
+  # pip install scvi-tools
 
   # Note: R-based tools (scDblFinder, DecontX, SoupX) require manual installation
   # If you need these tools, install them separately:

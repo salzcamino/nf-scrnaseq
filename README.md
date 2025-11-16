@@ -9,6 +9,7 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Data Import**: Support for multiple input formats (10X Genomics, H5AD, CSV)
 - **Quality Control**: Cell and gene filtering based on QC metrics
 - **Doublet Detection**: Scrublet, scDblFinder, and decontamination with DecontX
+- **Multi-sample Integration**: Harmony, Scanorama, BBKNN, scVI for combining multiple samples
 - **Normalization**: Library size normalization and log transformation
 - **Feature Selection**: Highly variable gene identification
 - **Dimensionality Reduction**: PCA, UMAP, and t-SNE embeddings
@@ -98,6 +99,77 @@ The pipeline supports the following input formats:
 | `--max_pct_mt` | 5 | Maximum mitochondrial percentage |
 | `--exclude_mt` | false | Exclude mitochondrial genes |
 | `--exclude_ribo` | false | Exclude ribosomal genes |
+
+### Multi-sample Integration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--sample_ids` | auto | Sample identifiers (comma-separated or 'auto' for filename-based) |
+| `--integration_method` | harmony | Integration method: 'concat', 'harmony', 'scanorama', 'bbknn', 'scvi' |
+| `--run_integration` | true | Enable sample integration (auto-disabled for single sample) |
+
+**Supported Input Patterns for Multiple Samples:**
+
+```bash
+# Glob pattern for multiple h5ad files
+nextflow run main.nf --input "samples/*.h5ad" -profile conda
+
+# Multiple 10X directories
+nextflow run main.nf --input "data/sample*/filtered_feature_bc_matrix" -profile conda
+
+# Explicit sample IDs
+nextflow run main.nf \
+  --input "samples/*.h5ad" \
+  --sample_ids "Control_1,Control_2,Treatment_1,Treatment_2" \
+  -profile conda
+```
+
+**Integration Methods:**
+
+- **concat** - Simple concatenation without correction (baseline)
+- **harmony** (default) - Fast, embedding-based integration via Harmony algorithm
+- **scanorama** - Panoramic stitching for batch integration
+- **bbknn** - Batch-balanced k-nearest neighbors graph
+- **scvi** - Variational autoencoder-based integration (requires scvi-tools)
+
+**Workflow for Multi-sample Analysis:**
+
+1. Each sample is processed in parallel through:
+   - Data import
+   - QC filtering
+   - Doublet detection
+
+2. All QC'd samples are integrated:
+   - Common genes identified
+   - Samples merged with sample labels
+   - Integration method applied (if not 'concat')
+
+3. Downstream analysis continues on integrated data:
+   - Normalization
+   - HVG selection
+   - Dimensionality reduction
+   - Clustering (with proper batch handling)
+   - Cell type annotation
+   - etc.
+
+**Example with Harmony Integration:**
+
+```bash
+nextflow run main.nf \
+  --input "data/sample*.h5ad" \
+  --sample_ids "Sample1,Sample2,Sample3" \
+  --integration_method harmony \
+  --batch_key sample \
+  -profile conda
+```
+
+**Important Notes:**
+
+- Sample information is stored in `adata.obs['sample']`
+- Use `--batch_key sample` for downstream batch correction to leverage sample info
+- Integration runs after QC but before normalization
+- Single sample inputs skip the integration step automatically
+- QC plots and summaries are generated per-sample before integration
 
 ### Doublet Detection
 
@@ -504,6 +576,10 @@ results/
 │   ├── doublet_scores.csv        # Doublet scores per cell
 │   ├── doublet_plots.pdf         # Doublet score visualizations
 │   └── doublet_summary.txt       # Doublet detection summary
+├── integration/                   # (if multi-sample)
+│   ├── integrated.h5ad           # Merged and integrated data
+│   ├── integration_plots.pdf     # Sample composition and mixing plots
+│   └── integration_summary.txt   # Integration analysis summary
 ├── normalize/
 │   ├── normalized.h5ad           # Normalized data
 │   └── normalization_summary.txt # Normalization parameters
@@ -722,8 +798,8 @@ The QC module generates comprehensive plots including:
 
 **Coming Soon**:
 - RNA velocity analysis
-- Integration of multiple samples
 - Spatial transcriptomics support
+- Differential abundance testing
 
 ## Requirements
 
@@ -743,6 +819,8 @@ The pipeline uses the following key packages:
 - harmonypy >= 0.0.9 (for Harmony batch correction)
 - bbknn >= 1.6.0 (for batch-balanced k-nearest neighbors)
 - cellphonedb >= 5.0.0 (for cell-cell communication analysis)
+- scanorama >= 1.7.0 (for multi-sample integration)
+- scvi-tools (optional, for scVI integration method)
 
 **R packages (manual installation required)**:
 - r-base >= 4.2

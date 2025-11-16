@@ -16,10 +16,15 @@ def helpMessage() {
       nextflow run main.nf --input <path> [options]
 
     Required arguments:
-      --input              Path to input data (10X directory, h5ad file, or CSV file)
+      --input              Path to input data (10X directory, h5ad file, CSV file, or glob pattern for multiple samples)
 
     Input options:
       --input_format       Input format: 'auto', '10x', 'h5ad', 'csv' (default: auto)
+
+    Multi-sample integration:
+      --sample_ids         Sample identifiers: 'auto' or comma-separated list (default: auto)
+      --integration_method Integration method: 'concat', 'harmony', 'scanorama', 'bbknn', 'scvi' (default: harmony)
+      --run_integration    Enable sample integration (default: true, auto-disabled for single sample)
 
     QC filtering options:
       --min_genes          Minimum number of genes per cell (default: 200)
@@ -139,6 +144,11 @@ Input Data     : ${params.input}
 Input Format   : ${params.input_format}
 Output Dir     : ${params.outdir}
 -------------------------------------------------------
+Multi-sample Integration:
+  Sample IDs   : ${params.sample_ids}
+  Method       : ${params.integration_method}
+  Run          : ${params.run_integration}
+-------------------------------------------------------
 QC Parameters:
   Min genes    : ${params.min_genes}
   Min cells    : ${params.min_cells}
@@ -234,6 +244,7 @@ include { CELL_CYCLE_SCORING } from './modules/local/cell_cycle.nf'
 include { TRAJECTORY_ANALYSIS } from './modules/local/trajectory.nf'
 include { CELL_COMMUNICATION } from './modules/local/cell_communication.nf'
 include { HTML_REPORT } from './modules/local/html_report.nf'
+include { SAMPLE_INTEGRATION } from './modules/local/sample_integration.nf'
 
 /*
 ========================================================================================
@@ -242,16 +253,16 @@ include { HTML_REPORT } from './modules/local/html_report.nf'
 */
 
 workflow {
-    // Create input channel
+    // Create input channel (supports single file, directory, or glob pattern for multiple samples)
     ch_input = Channel.fromPath(params.input, checkIfExists: true)
 
-    // Import data
+    // Import data (processes each input in parallel if multiple)
     IMPORT_DATA(
         ch_input,
         params.input_format
     )
 
-    // QC and filtering
+    // QC and filtering (processes each sample in parallel)
     QC_FILTER(
         IMPORT_DATA.out.adata,
         params.min_genes,
@@ -263,7 +274,7 @@ workflow {
         params.exclude_ribo
     )
 
-    // Doublet detection and decontamination (optional)
+    // Doublet detection and decontamination (optional, processes each sample in parallel)
     if (params.run_doublet_detection) {
         DOUBLET_DECONTAM(
             QC_FILTER.out.adata,
@@ -273,9 +284,26 @@ workflow {
             params.scrublet_threshold,
             params.expected_doublet_rate
         )
-        ch_for_norm = DOUBLET_DECONTAM.out.adata
+        ch_qc_complete = DOUBLET_DECONTAM.out.adata
     } else {
-        ch_for_norm = QC_FILTER.out.adata
+        ch_qc_complete = QC_FILTER.out.adata
+    }
+
+    // Multi-sample integration
+    // Collect all QC'd samples
+    ch_qc_collected = ch_qc_complete.collect()
+
+    // Sample integration (handles single and multiple samples)
+    if (params.run_integration) {
+        SAMPLE_INTEGRATION(
+            ch_qc_collected,
+            params.sample_ids,
+            params.integration_method
+        )
+        ch_for_norm = SAMPLE_INTEGRATION.out.adata
+    } else {
+        // If not running integration, use first/only sample
+        ch_for_norm = ch_qc_collected.map { it instanceof List ? it[0] : it }
     }
 
     // Normalization
