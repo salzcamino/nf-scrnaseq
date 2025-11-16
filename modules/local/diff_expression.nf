@@ -276,7 +276,7 @@ Results:
 """
 
 # Add per-cluster summary
-summary += "Markers per Cluster:\n"
+summary += "Markers per Cluster:\\n"
 for cluster in sorted(adata.obs[cluster_key].unique(), key=lambda x: str(x)):
     cluster_str = str(cluster)
     n_sig = len(filtered_df[filtered_df['cluster'] == cluster_str])
