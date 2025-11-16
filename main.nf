@@ -95,6 +95,12 @@ def helpMessage() {
       --trajectory_root       Root cell: 'auto', cluster ID, or barcode (default: auto)
       --n_diffusion_comps     Number of diffusion components (default: 15)
 
+    Cell-cell communication:
+      --run_communication     Run cell-cell communication analysis (default: true)
+      --communication_cell_type_key  Cell type column (default: auto)
+      --communication_min_cells      Min cells per type (default: 10)
+      --communication_n_permutations  Permutations for p-value (default: 100)
+
     Output options:
       --outdir             Output directory (default: ./results)
       --publish_dir_mode   Publishing mode: 'copy', 'symlink', 'move' (default: copy)
@@ -196,6 +202,12 @@ Trajectory:
   Root cell    : ${params.trajectory_root}
   N DCs        : ${params.n_diffusion_comps}
 -------------------------------------------------------
+Cell Communication:
+  Enabled      : ${params.run_communication}
+  Cell type key: ${params.communication_cell_type_key}
+  Min cells    : ${params.communication_min_cells}
+  Permutations : ${params.communication_n_permutations}
+-------------------------------------------------------
 """.stripIndent()
 
 // Import modules
@@ -212,6 +224,7 @@ include { GENE_SET_ENRICHMENT } from './modules/local/gsea.nf'
 include { BATCH_CORRECTION } from './modules/local/batch_correction.nf'
 include { CELL_CYCLE_SCORING } from './modules/local/cell_cycle.nf'
 include { TRAJECTORY_ANALYSIS } from './modules/local/trajectory.nf'
+include { CELL_COMMUNICATION } from './modules/local/cell_communication.nf'
 
 /*
 ========================================================================================
@@ -384,6 +397,27 @@ workflow {
             params.n_diffusion_comps,
             params.cluster_key
         )
+    }
+
+    // Cell-cell communication (optional, requires cell type annotations)
+    if (params.run_communication) {
+        // Use annotated data if available, otherwise clustered data
+        if (params.run_annotation) {
+            CELL_COMMUNICATION(
+                CELL_TYPE_ANNOTATION.out.adata,
+                params.communication_cell_type_key,
+                params.communication_min_cells,
+                params.communication_n_permutations
+            )
+        } else {
+            // Use clusters as cell types
+            CELL_COMMUNICATION(
+                CLUSTERING.out.adata,
+                params.cluster_key,
+                params.communication_min_cells,
+                params.communication_n_permutations
+            )
+        }
     }
 }
 

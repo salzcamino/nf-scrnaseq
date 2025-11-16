@@ -19,6 +19,7 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Batch Correction**: Automatic detection and correction of batch effects
 - **Cell Cycle Analysis**: Phase scoring (G1/S/G2M) with optional regression
 - **Trajectory Analysis**: Pseudotime inference using PAGA and diffusion maps
+- **Cell-Cell Communication**: Ligand-receptor interaction analysis between cell types
 - **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
@@ -390,6 +391,48 @@ nextflow run main.nf \
 - Trajectory visualizations on UMAP and force-directed layouts
 - Pseudotime distribution per cluster
 
+### Cell-Cell Communication
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_communication` | true | Run cell-cell communication analysis |
+| `--communication_cell_type_key` | auto | Cell type annotation column to use |
+| `--communication_min_cells` | 10 | Minimum cells per cell type |
+| `--communication_n_permutations` | 100 | Permutations for significance testing |
+
+**Features:**
+- Scores ligand-receptor interactions between cell types
+- Uses curated database of human L-R pairs (chemokines, cytokines, growth factors, immune checkpoints)
+- Permutation testing for statistical significance
+- Network visualization of cell-cell interactions
+- Identifies active sender and receiver cell types
+
+**Ligand-Receptor Categories:**
+- Chemokines (CCL/CXCL - CCR/CXCR)
+- Cytokines (IL, IFN, TNF, TGF)
+- Growth factors (EGF, VEGF, FGF, PDGF)
+- Immune checkpoints (PD-L1/PD-1, CD80/CD28, CTLA4)
+- MHC interactions (HLA-CD8/CD4)
+- Adhesion molecules (ICAM, VCAM)
+- Notch and Wnt signaling
+
+**Example:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_communication true \
+  --communication_min_cells 20 \
+  --communication_n_permutations 1000 \
+  -profile conda
+```
+
+**Outputs:**
+- Ligand-receptor pair scores for all cell type combinations
+- Communication matrix (sender × receiver)
+- Network visualization of interactions
+- Top active L-R pairs and cell types
+- Significance testing results (p-values from permutations)
+
 ### Output
 
 | Parameter | Default | Description |
@@ -459,11 +502,17 @@ results/
 │   ├── pathway_scores.csv        # Pathway scores for each cell
 │   ├── gsea_plots.pdf            # Pathway enrichment heatmaps
 │   └── gsea_summary.txt          # GSEA analysis summary
-└── trajectory/                    # (if enabled)
-    ├── trajectory_results.h5ad  # Data with pseudotime and PAGA
-    ├── pseudotime.csv           # Pseudotime values per cell
-    ├── trajectory_plots.pdf     # PAGA, diffusion maps, pseudotime plots
-    └── trajectory_summary.txt   # Trajectory analysis summary
+├── trajectory/                    # (if enabled)
+│   ├── trajectory_results.h5ad  # Data with pseudotime and PAGA
+│   ├── pseudotime.csv           # Pseudotime values per cell
+│   ├── trajectory_plots.pdf     # PAGA, diffusion maps, pseudotime plots
+│   └── trajectory_summary.txt   # Trajectory analysis summary
+└── cell_communication/            # (if enabled)
+    ├── communication_results.h5ad # Data with communication metadata
+    ├── ligand_receptor_pairs.csv # All L-R interaction scores
+    ├── communication_matrix.csv  # Sender × receiver matrix
+    ├── communication_plots.pdf   # Network and heatmap visualizations
+    └── communication_summary.txt # Communication analysis summary
 ```
 
 ## Profiles
@@ -610,11 +659,13 @@ The QC module generates comprehensive plots including:
 - Batch correction (Harmony, ComBat, BBKNN with automatic effect detection)
 - Cell cycle scoring and optional regression (Tirosh et al. gene sets)
 - Trajectory analysis (PAGA, diffusion pseudotime, force-directed layouts)
+- Cell-cell communication (ligand-receptor interaction scoring)
 - Comprehensive visualization at each step
 
 **Coming Soon**:
 - RNA velocity analysis
 - Integration of multiple samples
+- Spatial transcriptomics support
 
 ## Requirements
 
