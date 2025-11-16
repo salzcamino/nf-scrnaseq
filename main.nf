@@ -69,6 +69,11 @@ def helpMessage() {
       --de_n_genes            Number of top genes per cluster (default: 25)
       --de_min_fold_change    Minimum fold change (default: 1.5)
 
+    Cell type annotation:
+      --run_annotation        Run cell type annotation (default: true)
+      --marker_file           Marker gene file: 'default' or path to JSON/CSV (default: default)
+      --annotation_method     Scoring method (default: score_genes)
+
     Output options:
       --outdir             Output directory (default: ./results)
       --publish_dir_mode   Publishing mode: 'copy', 'symlink', 'move' (default: copy)
@@ -145,6 +150,11 @@ Diff Expression:
   N genes      : ${params.de_n_genes}
   Min FC       : ${params.de_min_fold_change}
 -------------------------------------------------------
+Cell Type Annotation:
+  Enabled      : ${params.run_annotation}
+  Marker file  : ${params.marker_file}
+  Method       : ${params.annotation_method}
+-------------------------------------------------------
 """.stripIndent()
 
 // Import modules
@@ -156,6 +166,7 @@ include { HIGHLY_VARIABLE_GENES } from './modules/local/highly_variable_genes.nf
 include { REDUCE_DIMS } from './modules/local/reduce_dims.nf'
 include { CLUSTERING } from './modules/local/clustering.nf'
 include { DIFF_EXPRESSION } from './modules/local/diff_expression.nf'
+include { CELL_TYPE_ANNOTATION } from './modules/local/cell_type_annotation.nf'
 
 /*
 ========================================================================================
@@ -253,6 +264,24 @@ workflow {
             params.de_min_fold_change,
             params.de_min_in_group_fraction,
             params.de_max_out_group_fraction
+        )
+
+        // Cell type annotation (optional, depends on DE)
+        if (params.run_annotation) {
+            CELL_TYPE_ANNOTATION(
+                DIFF_EXPRESSION.out.adata,
+                params.marker_file,
+                params.cluster_key,
+                params.annotation_method
+            )
+        }
+    } else if (params.run_annotation) {
+        // Run annotation without DE
+        CELL_TYPE_ANNOTATION(
+            CLUSTERING.out.adata,
+            params.marker_file,
+            params.cluster_key,
+            params.annotation_method
         )
     }
 }

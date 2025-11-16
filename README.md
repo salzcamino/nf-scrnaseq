@@ -14,6 +14,7 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Dimensionality Reduction**: PCA, UMAP, and t-SNE embeddings
 - **Clustering**: Leiden, Louvain, Seurat SNN, and Celda clustering algorithms
 - **Differential Expression**: Marker gene identification with multiple statistical methods
+- **Cell Type Annotation**: Automated cell type prediction based on marker genes
 - **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
@@ -161,6 +162,34 @@ The pipeline supports the following input formats:
 | `--de_min_in_group_fraction` | 0.25 | Minimum fraction of cells expressing marker in cluster |
 | `--de_max_out_group_fraction` | 0.5 | Maximum fraction of cells expressing marker outside cluster |
 
+### Cell Type Annotation
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_annotation` | true | Run cell type annotation |
+| `--marker_file` | default | Marker gene file: 'default' uses built-in PBMC markers, or provide path to JSON/CSV |
+| `--annotation_method` | score_genes | Scoring method for cell type assignment |
+
+**Marker File Format:**
+
+JSON format:
+```json
+{
+  "T_cells": ["CD3D", "CD3E", "CD4", "CD8A"],
+  "B_cells": ["CD19", "MS4A1", "CD79A"],
+  "NK_cells": ["NKG7", "GNLY", "KLRD1"]
+}
+```
+
+CSV format:
+```csv
+cell_type,gene
+T_cells,CD3D
+T_cells,CD3E
+B_cells,CD19
+B_cells,MS4A1
+```
+
 ### Output
 
 | Parameter | Default | Description |
@@ -202,12 +231,18 @@ results/
 │   ├── cluster_assignments.csv   # Cluster labels per cell
 │   ├── clustering_plots.pdf      # Cluster visualizations on UMAP/PCA
 │   └── clustering_summary.txt    # Clustering summary and statistics
-└── diff_expression/               # (if enabled)
-    ├── de_results.h5ad           # Data with DE results stored
-    ├── marker_genes.csv          # All marker gene statistics
-    ├── top_markers_per_cluster.csv # Top N markers per cluster
-    ├── de_plots.pdf              # Dot plots, heatmaps, violin plots
-    └── de_summary.txt            # DE analysis summary
+├── diff_expression/               # (if enabled)
+│   ├── de_results.h5ad           # Data with DE results stored
+│   ├── marker_genes.csv          # All marker gene statistics
+│   ├── top_markers_per_cluster.csv # Top N markers per cluster
+│   ├── de_plots.pdf              # Dot plots, heatmaps, violin plots
+│   └── de_summary.txt            # DE analysis summary
+└── annotation/                    # (if enabled)
+    ├── annotated.h5ad            # Data with cell type annotations
+    ├── cell_type_scores.csv      # Cell type scores for each cell
+    ├── cluster_annotations.csv   # Cluster-level type assignments
+    ├── annotation_plots.pdf      # Cell type distribution and heatmaps
+    └── annotation_summary.txt    # Annotation summary
 ```
 
 ## Profiles
@@ -348,11 +383,12 @@ The QC module generates comprehensive plots including:
 - Dimensionality reduction (PCA, UMAP, t-SNE)
 - Clustering (Leiden, Louvain, Seurat SNN, Celda)
 - Differential expression analysis (marker gene identification)
+- Cell type annotation (marker-based scoring)
 - Comprehensive visualization at each step
 
 **Coming Soon**:
-- Cell type annotation
-- Trajectory analysis
+- Trajectory/pseudotime analysis
+- Integration of multiple samples
 
 ## Requirements
 
