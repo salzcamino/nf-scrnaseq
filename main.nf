@@ -101,6 +101,10 @@ def helpMessage() {
       --communication_min_cells      Min cells per type (default: 10)
       --communication_n_permutations  Permutations for p-value (default: 100)
 
+    HTML Report:
+      --generate_report       Generate HTML report (default: true)
+      --report_title          Report title (default: nf-scrnaseq Analysis Report)
+
     Output options:
       --outdir             Output directory (default: ./results)
       --publish_dir_mode   Publishing mode: 'copy', 'symlink', 'move' (default: copy)
@@ -208,6 +212,10 @@ Cell Communication:
   Min cells    : ${params.communication_min_cells}
   Permutations : ${params.communication_n_permutations}
 -------------------------------------------------------
+HTML Report:
+  Enabled      : ${params.generate_report}
+  Title        : ${params.report_title}
+-------------------------------------------------------
 """.stripIndent()
 
 // Import modules
@@ -225,6 +233,7 @@ include { BATCH_CORRECTION } from './modules/local/batch_correction.nf'
 include { CELL_CYCLE_SCORING } from './modules/local/cell_cycle.nf'
 include { TRAJECTORY_ANALYSIS } from './modules/local/trajectory.nf'
 include { CELL_COMMUNICATION } from './modules/local/cell_communication.nf'
+include { HTML_REPORT } from './modules/local/html_report.nf'
 
 /*
 ========================================================================================
@@ -417,6 +426,18 @@ workflow {
                 params.communication_min_cells,
                 params.communication_n_permutations
             )
+        }
+    }
+
+    // HTML Report Generation (optional, consolidates all results)
+    if (params.generate_report) {
+        // Determine which AnnData to use for the report (most complete version)
+        if (params.run_annotation && params.run_diff_expression) {
+            HTML_REPORT(CELL_TYPE_ANNOTATION.out.adata)
+        } else if (params.run_diff_expression) {
+            HTML_REPORT(DIFF_EXPRESSION.out.adata)
+        } else {
+            HTML_REPORT(CLUSTERING.out.adata)
         }
     }
 }

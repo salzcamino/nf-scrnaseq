@@ -20,6 +20,7 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Cell Cycle Analysis**: Phase scoring (G1/S/G2M) with optional regression
 - **Trajectory Analysis**: Pseudotime inference using PAGA and diffusion maps
 - **Cell-Cell Communication**: Ligand-receptor interaction analysis between cell types
+- **HTML Report Generation**: Self-contained interactive reports with embedded visualizations
 - **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
@@ -435,6 +436,50 @@ nextflow run main.nf \
 - Top active L-R pairs and cell types
 - Significance testing results (p-values from permutations)
 
+### HTML Report Generation
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--generate_report` | true | Generate comprehensive HTML report |
+| `--report_title` | nf-scrnaseq Analysis Report | Report title |
+
+**Features:**
+- Self-contained HTML report with embedded visualizations
+- Summary statistics (cells, genes, clusters, cell types)
+- Interactive collapsible sections
+- QC metrics and distribution plots
+- Cluster composition tables
+- Cell type annotation results
+- Top marker genes per cluster (expandable)
+- Cell cycle phase distribution
+- Pseudotime/trajectory results
+- Responsive design for any screen size
+
+**What's Included:**
+- **Quality Control**: Cell/gene counts, mitochondrial percentage, doublet detection
+- **Clustering**: Cluster distribution tables and UMAP visualizations
+- **Cell Type Annotation**: Cell type composition and proportions
+- **Differential Expression**: Top 10 marker genes per cluster with statistics
+- **Cell Cycle**: Phase distribution (G1/S/G2M)
+- **Trajectory**: Pseudotime range and UMAP colored by pseudotime
+- **Dataset Information**: AnnData structure and available embeddings
+
+**Example:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --generate_report true \
+  --report_title "My scRNA-seq Analysis" \
+  -profile conda
+```
+
+**Outputs:**
+- `pipeline_report.html` - Self-contained HTML report
+- `report_data/summary.json` - Machine-readable summary statistics
+- `report_data/cell_metadata.csv` - Cell-level annotations
+- `report_data/gene_metadata.csv` - Gene-level information
+- `report_plots/` - Individual plot files (PNG)
+
 ### Output
 
 | Parameter | Default | Description |
@@ -509,12 +554,23 @@ results/
 │   ├── pseudotime.csv           # Pseudotime values per cell
 │   ├── trajectory_plots.pdf     # PAGA, diffusion maps, pseudotime plots
 │   └── trajectory_summary.txt   # Trajectory analysis summary
-└── cell_communication/            # (if enabled)
-    ├── communication_results.h5ad # Data with communication metadata
-    ├── ligand_receptor_pairs.csv # All L-R interaction scores
-    ├── communication_matrix.csv  # Sender × receiver matrix
-    ├── communication_plots.pdf   # Network and heatmap visualizations
-    └── communication_summary.txt # Communication analysis summary
+├── cell_communication/            # (if enabled)
+│   ├── communication_results.h5ad # Data with communication metadata
+│   ├── ligand_receptor_pairs.csv # All L-R interaction scores
+│   ├── communication_matrix.csv  # Sender × receiver matrix
+│   ├── communication_plots.pdf   # Network and heatmap visualizations
+│   └── communication_summary.txt # Communication analysis summary
+└── report/                        # (if enabled)
+    ├── pipeline_report.html      # Self-contained HTML report
+    ├── report_data/
+    │   ├── summary.json          # Machine-readable statistics
+    │   ├── cell_metadata.csv     # All cell-level annotations
+    │   └── gene_metadata.csv     # Gene-level information
+    └── report_plots/
+        ├── qc_distributions.png  # QC metric histograms
+        ├── umap_clusters.png     # UMAP colored by cluster/cell type
+        ├── cell_cycle.png        # Cell cycle phase distribution
+        └── pseudotime.png        # Pseudotime on UMAP
 ```
 
 ## Profiles
