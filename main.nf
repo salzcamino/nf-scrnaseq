@@ -40,6 +40,20 @@ def helpMessage() {
       --scrublet_threshold    Scrublet threshold: 'auto' or numeric (default: auto)
       --expected_doublet_rate Expected doublet rate (default: 0.06)
 
+    Normalization options:
+      --target_sum            Target sum for normalization (default: auto/median)
+      --log_transform         Apply log1p transformation (default: true)
+
+    Highly variable genes:
+      --n_top_genes           Number of top HVGs to select (default: 2000)
+      --hvg_flavor            HVG selection method: 'seurat' or 'cell_ranger' (default: seurat)
+
+    Dimensionality reduction:
+      --n_pcs                 Number of principal components (default: 50)
+      --n_neighbors           Number of neighbors for UMAP (default: 15)
+      --run_umap              Compute UMAP embedding (default: true)
+      --run_tsne              Compute t-SNE embedding (default: false)
+
     Output options:
       --outdir             Output directory (default: ./results)
       --publish_dir_mode   Publishing mode: 'copy', 'symlink', 'move' (default: copy)
@@ -87,12 +101,29 @@ Doublet Detection:
   scDblFinder  : ${params.run_scdblfinder}
   DecontX      : ${params.run_decontx}
 -------------------------------------------------------
+Normalization:
+  Target sum   : ${params.target_sum}
+  Log transform: ${params.log_transform}
+-------------------------------------------------------
+HVG Selection:
+  N top genes  : ${params.n_top_genes}
+  Flavor       : ${params.hvg_flavor}
+-------------------------------------------------------
+Dim Reduction:
+  N PCs        : ${params.n_pcs}
+  N neighbors  : ${params.n_neighbors}
+  Run UMAP     : ${params.run_umap}
+  Run t-SNE    : ${params.run_tsne}
+-------------------------------------------------------
 """.stripIndent()
 
 // Import modules
 include { IMPORT_DATA } from './modules/local/import_data.nf'
 include { QC_FILTER } from './modules/local/qc_filter.nf'
 include { DOUBLET_DECONTAM } from './modules/local/doublet_decontam.nf'
+include { NORMALIZE } from './modules/local/normalize.nf'
+include { HIGHLY_VARIABLE_GENES } from './modules/local/highly_variable_genes.nf'
+include { REDUCE_DIMS } from './modules/local/reduce_dims.nf'
 
 /*
 ========================================================================================
@@ -122,7 +153,7 @@ workflow {
         params.exclude_ribo
     )
 
-    // Doublet detection and decontamination
+    // Doublet detection and decontamination (optional)
     if (params.run_doublet_detection) {
         DOUBLET_DECONTAM(
             QC_FILTER.out.adata,
@@ -132,7 +163,38 @@ workflow {
             params.scrublet_threshold,
             params.expected_doublet_rate
         )
+        ch_for_norm = DOUBLET_DECONTAM.out.adata
+    } else {
+        ch_for_norm = QC_FILTER.out.adata
     }
+
+    // Normalization
+    NORMALIZE(
+        ch_for_norm,
+        params.target_sum,
+        params.log_transform
+    )
+
+    // Highly variable gene selection
+    HIGHLY_VARIABLE_GENES(
+        NORMALIZE.out.adata,
+        params.n_top_genes,
+        params.hvg_min_mean,
+        params.hvg_max_mean,
+        params.hvg_min_disp,
+        params.hvg_flavor
+    )
+
+    // Dimensionality reduction
+    REDUCE_DIMS(
+        HIGHLY_VARIABLE_GENES.out.adata,
+        params.n_pcs,
+        params.n_neighbors,
+        params.run_umap,
+        params.run_tsne,
+        params.umap_min_dist,
+        params.tsne_perplexity
+    )
 }
 
 /*

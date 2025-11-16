@@ -9,7 +9,10 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Data Import**: Support for multiple input formats (10X Genomics, H5AD, CSV)
 - **Quality Control**: Cell and gene filtering based on QC metrics
 - **Doublet Detection**: Scrublet, scDblFinder, and decontamination with DecontX
-- **QC Visualization**: Comprehensive plots and reports
+- **Normalization**: Library size normalization and log transformation
+- **Feature Selection**: Highly variable gene identification
+- **Dimensionality Reduction**: PCA, UMAP, and t-SNE embeddings
+- **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
 
@@ -100,6 +103,34 @@ The pipeline supports the following input formats:
 
 **Note**: R-based tools (scDblFinder, DecontX) are only available when using the `conda` profile. The Docker image supports Python-based Scrublet and simple ambient RNA estimation.
 
+### Normalization
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--target_sum` | auto | Target sum for normalization (auto uses median) |
+| `--log_transform` | true | Apply log1p transformation after normalization |
+
+### Highly Variable Genes
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--n_top_genes` | 2000 | Number of top HVGs to select |
+| `--hvg_min_mean` | 0.0125 | Minimum mean expression threshold |
+| `--hvg_max_mean` | 3 | Maximum mean expression threshold |
+| `--hvg_min_disp` | 0.5 | Minimum dispersion threshold |
+| `--hvg_flavor` | seurat | HVG selection method ('seurat' or 'cell_ranger') |
+
+### Dimensionality Reduction
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--n_pcs` | 50 | Number of principal components |
+| `--n_neighbors` | 15 | Number of neighbors for UMAP |
+| `--run_umap` | true | Compute UMAP embedding |
+| `--run_tsne` | false | Compute t-SNE embedding (slower) |
+| `--umap_min_dist` | 0.5 | UMAP min_dist parameter |
+| `--tsne_perplexity` | 30 | t-SNE perplexity parameter |
+
 ### Output
 
 | Parameter | Default | Description |
@@ -119,11 +150,23 @@ results/
 │   ├── qc_metrics.csv            # QC metrics per cell
 │   ├── qc_plots.pdf              # QC visualization plots
 │   └── qc_summary.txt            # QC filtering summary
-└── doublet_decontam/
-    ├── doublet_scored.h5ad       # Data with doublet scores
-    ├── doublet_scores.csv        # Doublet scores per cell
-    ├── doublet_plots.pdf         # Doublet score visualizations
-    └── doublet_summary.txt       # Doublet detection summary
+├── doublet_decontam/              # (if enabled)
+│   ├── doublet_scored.h5ad       # Data with doublet scores
+│   ├── doublet_scores.csv        # Doublet scores per cell
+│   ├── doublet_plots.pdf         # Doublet score visualizations
+│   └── doublet_summary.txt       # Doublet detection summary
+├── normalize/
+│   ├── normalized.h5ad           # Normalized data
+│   └── normalization_summary.txt # Normalization parameters
+├── hvg/
+│   ├── hvg_selected.h5ad         # Data with HVG annotations
+│   ├── hvg_genes.csv             # HVG gene list with statistics
+│   ├── hvg_plots.pdf             # HVG selection plots
+│   └── hvg_summary.txt           # HVG selection summary
+└── dim_reduction/
+    ├── reduced_dims.h5ad         # Data with embeddings (PCA, UMAP, t-SNE)
+    ├── dim_reduction_plots.pdf   # PCA variance, UMAP, t-SNE plots
+    └── dim_reduction_summary.txt # Dimensionality reduction summary
 ```
 
 ## Profiles
@@ -206,15 +249,16 @@ The QC module generates comprehensive plots including:
 - Quality control and filtering
 - Doublet detection (Scrublet, scDblFinder)
 - Contamination estimation (DecontX, ambient RNA)
-- QC visualization
-
-**Coming Soon**:
-- Normalization and scaling
+- Normalization and log transformation
 - Highly variable gene selection
 - Dimensionality reduction (PCA, UMAP, t-SNE)
-- Clustering
+- Comprehensive visualization at each step
+
+**Coming Soon**:
+- Clustering (Leiden, Louvain)
 - Cell type annotation
 - Differential expression analysis
+- Trajectory analysis
 
 ## Requirements
 
