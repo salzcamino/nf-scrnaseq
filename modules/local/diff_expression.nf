@@ -105,27 +105,33 @@ for cluster in adata.obs[cluster_key].unique():
     pvals_adj = adata.uns['rank_genes_groups']['pvals_adj'][cluster_str]
     logfoldchanges = adata.uns['rank_genes_groups']['logfoldchanges'][cluster_str]
 
-    # Get percentage expressing
-    if 'pts' in adata.uns['rank_genes_groups']:
-        pts_in = adata.uns['rank_genes_groups']['pts'][cluster_str]
-    else:
-        pts_in = np.ones(len(names))
-
-    if 'pts_rest' in adata.uns['rank_genes_groups']:
-        pts_out = adata.uns['rank_genes_groups']['pts_rest'][cluster_str]
-    else:
-        pts_out = np.zeros(len(names))
+    # Get percentage expressing (these are DataFrames with genes as index)
+    pts_df = adata.uns['rank_genes_groups'].get('pts', None)
+    pts_rest_df = adata.uns['rank_genes_groups'].get('pts_rest', None)
 
     for i in range(len(names)):
+        gene_name = names[i]
+
+        # Extract pts values correctly from DataFrame
+        if pts_df is not None and isinstance(pts_df, pd.DataFrame):
+            pct_in = float(pts_df.loc[gene_name, cluster_str])
+        else:
+            pct_in = 1.0
+
+        if pts_rest_df is not None and isinstance(pts_rest_df, pd.DataFrame):
+            pct_out = float(pts_rest_df.loc[gene_name, cluster_str])
+        else:
+            pct_out = 0.0
+
         results_list.append({
             'cluster': cluster_str,
-            'gene': names[i],
-            'score': scores[i],
-            'log2fc': logfoldchanges[i],
-            'pval': pvals[i],
-            'pval_adj': pvals_adj[i],
-            'pct_in_group': pts_in[i] if isinstance(pts_in, np.ndarray) else pts_in,
-            'pct_out_group': pts_out[i] if isinstance(pts_out, np.ndarray) else pts_out
+            'gene': gene_name,
+            'score': float(scores[i]),
+            'log2fc': float(logfoldchanges[i]),
+            'pval': float(pvals[i]),
+            'pval_adj': float(pvals_adj[i]),
+            'pct_in_group': pct_in,
+            'pct_out_group': pct_out
         })
 
 results_df = pd.DataFrame(results_list)
