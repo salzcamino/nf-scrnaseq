@@ -54,6 +54,12 @@ def helpMessage() {
       --run_umap              Compute UMAP embedding (default: true)
       --run_tsne              Compute t-SNE embedding (default: false)
 
+    Clustering:
+      --run_leiden            Run Leiden clustering (default: true)
+      --run_louvain           Run Louvain clustering (default: false)
+      --leiden_resolution     Leiden resolution parameter (default: 1.0)
+      --louvain_resolution    Louvain resolution parameter (default: 1.0)
+
     Output options:
       --outdir             Output directory (default: ./results)
       --publish_dir_mode   Publishing mode: 'copy', 'symlink', 'move' (default: copy)
@@ -115,6 +121,12 @@ Dim Reduction:
   Run UMAP     : ${params.run_umap}
   Run t-SNE    : ${params.run_tsne}
 -------------------------------------------------------
+Clustering:
+  Run Leiden   : ${params.run_leiden}
+  Run Louvain  : ${params.run_louvain}
+  Leiden res   : ${params.leiden_resolution}
+  Louvain res  : ${params.louvain_resolution}
+-------------------------------------------------------
 """.stripIndent()
 
 // Import modules
@@ -124,6 +136,7 @@ include { DOUBLET_DECONTAM } from './modules/local/doublet_decontam.nf'
 include { NORMALIZE } from './modules/local/normalize.nf'
 include { HIGHLY_VARIABLE_GENES } from './modules/local/highly_variable_genes.nf'
 include { REDUCE_DIMS } from './modules/local/reduce_dims.nf'
+include { CLUSTERING } from './modules/local/clustering.nf'
 
 /*
 ========================================================================================
@@ -194,6 +207,16 @@ workflow {
         params.run_tsne,
         params.umap_min_dist,
         params.tsne_perplexity
+    )
+
+    // Clustering
+    CLUSTERING(
+        REDUCE_DIMS.out.adata,
+        params.run_leiden,
+        params.run_louvain,
+        params.leiden_resolution,
+        params.louvain_resolution,
+        params.cluster_key
     )
 }
 

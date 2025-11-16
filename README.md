@@ -12,6 +12,7 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Normalization**: Library size normalization and log transformation
 - **Feature Selection**: Highly variable gene identification
 - **Dimensionality Reduction**: PCA, UMAP, and t-SNE embeddings
+- **Clustering**: Leiden and Louvain community detection algorithms
 - **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
@@ -131,6 +132,16 @@ The pipeline supports the following input formats:
 | `--umap_min_dist` | 0.5 | UMAP min_dist parameter |
 | `--tsne_perplexity` | 30 | t-SNE perplexity parameter |
 
+### Clustering
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_leiden` | true | Run Leiden clustering (recommended) |
+| `--run_louvain` | false | Run Louvain clustering |
+| `--leiden_resolution` | 1.0 | Leiden resolution (higher = more clusters) |
+| `--louvain_resolution` | 1.0 | Louvain resolution (higher = more clusters) |
+| `--cluster_key` | auto | Primary cluster key ('auto', 'leiden', 'louvain') |
+
 ### Output
 
 | Parameter | Default | Description |
@@ -163,10 +174,15 @@ results/
 │   ├── hvg_genes.csv             # HVG gene list with statistics
 │   ├── hvg_plots.pdf             # HVG selection plots
 │   └── hvg_summary.txt           # HVG selection summary
-└── dim_reduction/
-    ├── reduced_dims.h5ad         # Data with embeddings (PCA, UMAP, t-SNE)
-    ├── dim_reduction_plots.pdf   # PCA variance, UMAP, t-SNE plots
-    └── dim_reduction_summary.txt # Dimensionality reduction summary
+├── dim_reduction/
+│   ├── reduced_dims.h5ad         # Data with embeddings (PCA, UMAP, t-SNE)
+│   ├── dim_reduction_plots.pdf   # PCA variance, UMAP, t-SNE plots
+│   └── dim_reduction_summary.txt # Dimensionality reduction summary
+└── clustering/
+    ├── clustered.h5ad            # Data with cluster assignments
+    ├── cluster_assignments.csv   # Cluster labels per cell
+    ├── clustering_plots.pdf      # Cluster visualizations on UMAP/PCA
+    └── clustering_summary.txt    # Clustering summary and statistics
 ```
 
 ## Profiles
@@ -252,10 +268,10 @@ The QC module generates comprehensive plots including:
 - Normalization and log transformation
 - Highly variable gene selection
 - Dimensionality reduction (PCA, UMAP, t-SNE)
+- Clustering (Leiden, Louvain)
 - Comprehensive visualization at each step
 
 **Coming Soon**:
-- Clustering (Leiden, Louvain)
 - Cell type annotation
 - Differential expression analysis
 - Trajectory analysis
