@@ -1018,6 +1018,496 @@ nextflow run main.nf -profile test,conda
 
 **Note**: For real scRNA-seq data, use the default QC parameters (min_genes=200, max_genes=2500) which are appropriate for typical datasets. The test data uses smaller thresholds due to the reduced gene set.
 
+
+## Cloud Execution Profiles
+
+The pipeline includes configurations for cloud execution on AWS, Google Cloud Platform, and HPC schedulers (Slurm/PBS). These profiles handle container orchestration, resource management, and storage integration for each platform.
+
+### AWS Batch Execution
+
+AWS Batch is Amazon's managed job scheduling and execution service. It automatically provisions compute resources and submits jobs.
+
+#### Prerequisites
+
+1. **AWS Account** - Active AWS account with billing enabled
+2. **AWS CLI** - Installed and configured with credentials
+   ```bash
+   # Install AWS CLI
+   # macOS
+   brew install awscli
+   
+   # Linux
+   sudo apt install awscli
+   
+   # Or use pip
+   pip install awscli
+   ```
+
+3. **AWS Batch Setup** - Create compute environment and job queues (one-time setup)
+   ```bash
+   # Create compute environment
+   aws batch create-compute-environment \
+     --compute-environment-name nf-scrnaseq-compute-env \
+     --type MANAGED \
+     --state ENABLED \
+     --compute-resources type=EC2,minvCpus=0,maxvCpus=256,desiredvCpus=0,instanceTypes=optimal,subnets=subnet-xxxxx,securityGroupIds=sg-xxxxx,instanceRole=arn:aws:iam::ACCOUNT:instance-profile/ecsInstanceProfile
+   
+   # Create job queue
+   aws batch create-job-queue \
+     --job-queue-name nf-scrnaseq-queue \
+     --state ENABLED \
+     --priority 1 \
+     --compute-environment-order order=1,computeEnvironment=nf-scrnaseq-compute-env
+   ```
+
+4. **Docker Image** - Push your container to Amazon ECR
+   ```bash
+   # Create ECR repository
+   aws ecr create-repository --repository-name nf-scrnaseq
+   
+   # Login to ECR
+   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
+   
+   # Tag and push image
+   docker tag nf-scrnaseq:latest ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/nf-scrnaseq:latest
+   docker push ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/nf-scrnaseq:latest
+   ```
+
+5. **S3 Bucket** - For storing results
+   ```bash
+   aws s3 mb s3://my-scrnaseq-bucket --region us-east-1
+   ```
+
+#### Configuration
+
+Edit `conf/aws.config`:
+```groovy
+aws {
+    region = 'us-east-1'                    // Your AWS region
+    batch {
+        computeEnvironment = 'nf-scrnaseq-compute-env'  // Your compute environment name
+        jobQueue = [
+            'default': 'nf-scrnaseq-queue',
+            'high-memory': 'nf-scrnaseq-highmem-queue'   // If you created this queue
+        ]
+    }
+}
+
+params {
+    outdir = 's3://my-scrnaseq-bucket/results'  // Your S3 bucket
+}
+```
+
+#### Running on AWS Batch
+
+```bash
+# Basic execution
+nextflow run main.nf \
+  --input s3://my-bucket/data.h5ad \
+  -profile aws
+
+# With custom parameters
+nextflow run main.nf \
+  --input s3://my-bucket/data.h5ad \
+  --max_pct_mt 10 \
+  --integration_method harmony \
+  -profile aws
+
+# View AWS Batch console for job monitoring
+# https://console.aws.amazon.com/batch/
+```
+
+#### Cost Considerations
+
+- **Compute Costs**: EC2 instances charged per hour (varies by instance type)
+- **Storage Costs**: S3 storage at $0.023/GB/month
+- **Data Transfer**: Free within AWS region, charged for cross-region
+- **Cost Optimization**:
+  - Use spot instances for 70% cost savings (risky - jobs can be interrupted)
+  - Run during off-peak hours
+  - Use smaller instance types for low-resource processes
+  - Monitor CloudWatch logs for optimization opportunities
+
+```bash
+# Enable spot instances in compute environment
+aws batch create-compute-environment \
+  --compute-resources spotIamFleetRole=arn:aws:iam::ACCOUNT:role/AmazonEC2SpotFleetRole
+```
+
+### Google Cloud Platform Execution
+
+GCP supports two execution models: Life Sciences API (recommended) and Batch. Both handle job orchestration and resource provisioning.
+
+#### Prerequisites
+
+1. **Google Cloud Account** - Active GCP account with billing enabled
+2. **gcloud CLI** - Installed and configured
+   ```bash
+   # Install gcloud
+   # macOS
+   brew install google-cloud-sdk
+   
+   # Linux
+   curl https://sdk.cloud.google.com | bash
+   exec -l $SHELL
+   ```
+
+3. **Authentication** - Set up credentials
+   ```bash
+   # Login and set default project
+   gcloud auth login
+   gcloud config set project MY_PROJECT_ID
+   
+   # Create service account for Nextflow
+   gcloud iam service-accounts create nf-scrnaseq \
+     --display-name="Service account for Nextflow"
+   
+   # Grant necessary roles
+   gcloud projects add-iam-policy-binding MY_PROJECT_ID \
+     --member=serviceAccount:nf-scrnaseq@MY_PROJECT_ID.iam.gserviceaccount.com \
+     --role=roles/lifesciences.workflowsWorker
+   
+   gcloud projects add-iam-policy-binding MY_PROJECT_ID \
+     --member=serviceAccount:nf-scrnaseq@MY_PROJECT_ID.iam.gserviceaccount.com \
+     --role=roles/storage.admin
+   
+   gcloud projects add-iam-policy-binding MY_PROJECT_ID \
+     --member=serviceAccount:nf-scrnaseq@MY_PROJECT_ID.iam.gserviceaccount.com \
+     --role=roles/compute.serviceAgent
+   
+   # Create and download key
+   gcloud iam service-accounts keys create key.json \
+     --iam-account=nf-scrnaseq@MY_PROJECT_ID.iam.gserviceaccount.com
+   
+   # Set environment variable
+   export GOOGLE_APPLICATION_CREDENTIALS=$PWD/key.json
+   ```
+
+4. **Enable APIs** - Required GCP APIs
+   ```bash
+   gcloud services enable lifesciences.googleapis.com
+   gcloud services enable compute.googleapis.com
+   gcloud services enable storage-api.googleapis.com
+   gcloud services enable cloudbuild.googleapis.com
+   ```
+
+5. **Container Image** - Push to Google Artifact Registry
+   ```bash
+   # Create artifact repository
+   gcloud artifacts repositories create nf-scrnaseq \
+     --repository-format=docker \
+     --location=us-central1
+   
+   # Configure Docker auth
+   gcloud auth configure-docker us-central1-docker.pkg.dev
+   
+   # Tag and push image
+   docker tag nf-scrnaseq:latest us-central1-docker.pkg.dev/MY_PROJECT_ID/nf-scrnaseq/nf-scrnaseq:latest
+   docker push us-central1-docker.pkg.dev/MY_PROJECT_ID/nf-scrnaseq/nf-scrnaseq:latest
+   ```
+
+6. **Cloud Storage Bucket** - For storing results
+   ```bash
+   gsutil mb gs://my-scrnaseq-bucket
+   ```
+
+#### Configuration
+
+Edit `conf/gcp.config`:
+```groovy
+google {
+    project = 'MY_PROJECT_ID'           // Your GCP project ID
+    location = 'us-central1'            // Compute region
+    
+    lifeSciences {
+        bootDiskSize = 100.GB           // Boot disk size
+        preemptible = false             // Set to true for cost savings
+    }
+}
+
+params {
+    outdir = 'gs://my-scrnaseq-bucket/results'  // Your GCS bucket
+}
+```
+
+#### Running on Google Cloud
+
+```bash
+# Using Life Sciences API (recommended)
+nextflow run main.nf \
+  --input gs://my-bucket/data.h5ad \
+  -profile gcp
+
+# Using Google Cloud Batch (newer)
+nextflow run main.nf \
+  --input gs://my-bucket/data.h5ad \
+  -profile gcp_batch
+
+# With custom parameters
+nextflow run main.nf \
+  --input gs://my-bucket/data.h5ad \
+  --integration_method harmony \
+  -profile gcp
+
+# Monitor in Google Cloud Console
+# https://console.cloud.google.com/life-sciences/workflows
+```
+
+#### Cost Considerations
+
+- **Compute Costs**: Variable by machine type and region
+  - n1-standard-4: ~$0.19/hour
+  - n1-standard-8: ~$0.38/hour
+- **Storage Costs**: GCS at $0.020/GB/month
+- **Preemptible Instances**: 70% discount but can be interrupted (good for non-critical steps)
+- **Cost Optimization**:
+  - Use preemptible instances for exploratory runs
+  - Choose appropriate machine types (don't over-provision)
+  - Use committed use discounts for production runs
+  - Archive results to Coldline storage for long-term retention
+
+```bash
+# Enable preemptible instances for cost savings
+# Edit conf/gcp.config:
+lifeSciences {
+    preemptible = true  // 70% cost reduction
+}
+```
+
+### HPC Scheduler Execution
+
+For high-performance computing clusters, use Slurm or PBS schedulers.
+
+#### Slurm HPC Execution
+
+Slurm is the most common HPC scheduler (used by XSEDE, NERSC, etc.).
+
+##### Prerequisites
+
+1. **HPC Account** - Active account on Slurm cluster
+2. **Singularity** - Container runtime on cluster
+   ```bash
+   # Check if available
+   module avail singularity
+   module load singularity
+   singularity --version
+   ```
+
+3. **Nextflow** - Install on login node
+   ```bash
+   # Option 1: Download binary
+   wget -qO- https://get.nextflow.io | bash
+   chmod +x nextflow
+   
+   # Option 2: Using conda
+   conda create -n nextflow -c bioconda nextflow
+   ```
+
+##### Configuration
+
+Edit `conf/slurm.config`:
+```groovy
+process {
+    executor = 'slurm'
+    queue = 'normal'  // Your default queue
+}
+
+slurm {
+    queueSize = 20              // Job queue size
+    submitRateLimit = '2 sec'   // Don't overwhelm scheduler
+}
+
+singularity {
+    enabled = true
+    cacheDir = '/scratch/$USER/singularity-cache'  // Use fast storage
+}
+
+params {
+    outdir = '/scratch/$USER/scrnaseq-results'  // Use local scratch
+}
+```
+
+##### Running on Slurm
+
+```bash
+# Basic execution
+nextflow run main.nf \
+  --input /path/to/data.h5ad \
+  -profile slurm
+
+# With resource constraints
+nextflow run main.nf \
+  --input /path/to/data.h5ad \
+  --max_cpus 8 \
+  --max_memory 32.GB \
+  -profile slurm
+
+# Submit as batch job (for long runs)
+cat > submit_nextflow.slurm << 'SLURM'
+#!/bin/bash
+#SBATCH --job-name=scrnaseq
+#SBATCH --time=168:00:00          # 7 days
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16GB
+#SBATCH --output=nextflow.log
+
+module load singularity
+module load nextflow
+
+nextflow run main.nf \
+  --input data.h5ad \
+  -profile slurm
+SLURM
+
+sbatch submit_nextflow.slurm
+```
+
+#### PBS/Torque HPC Execution
+
+PBS (Portable Batch System) or Torque is used on some HPC clusters.
+
+##### Prerequisites
+
+Similar to Slurm:
+1. HPC account on PBS cluster
+2. Singularity installed
+3. Nextflow installed
+
+##### Configuration
+
+Edit `conf/pbs.config`:
+```groovy
+process {
+    executor = 'pbs'
+    queue = 'standard'  // Your default queue
+}
+
+pbs {
+    queueSize = 20              // Job queue size
+    submitRateLimit = '2 sec'   // Don't overwhelm scheduler
+}
+
+singularity {
+    enabled = true
+    cacheDir = '/scratch/$USER/singularity-cache'
+}
+
+params {
+    outdir = '/scratch/$USER/scrnaseq-results'
+}
+```
+
+##### Running on PBS
+
+```bash
+# Basic execution
+nextflow run main.nf \
+  --input /path/to/data.h5ad \
+  -profile pbs
+
+# Submit as batch job
+cat > submit_nextflow.pbs << 'PBS'
+#!/bin/bash
+#PBS -N scrnaseq
+#PBS -l walltime=168:00:00
+#PBS -l nodes=1:ppn=4
+#PBS -l mem=16GB
+#PBS -o nextflow.log
+
+module load singularity
+module load nextflow
+
+nextflow run main.nf \
+  --input data.h5ad \
+  -profile pbs
+PBS
+
+qsub submit_nextflow.pbs
+```
+
+#### HPC Cost Considerations
+
+- **No Direct Costs** - Usually included in institutional allocation
+- **Allocation Limits** - CPU hours and storage quotas per user/project
+- **Optimization**:
+  - Use efficient resource requests (avoid over-provisioning)
+  - Run during low-load periods if possible
+  - Use job arrays for embarrassingly parallel tasks
+  - Clean up temporary files regularly
+
+### Platform Comparison
+
+| Feature | AWS Batch | GCP Life Sciences | Slurm HPC | PBS HPC |
+|---------|-----------|------------------|-----------|---------|
+| Setup Complexity | Medium | High | Low | Low |
+| Setup Time | ~30 min | ~30-60 min | 5-10 min* | 5-10 min* |
+| Container Support | Docker/Singularity | Docker/Singularity | Singularity | Singularity |
+| Cost (per hour)** | $0.19-0.95 | $0.19-0.95 | Varies | Varies |
+| Storage | S3 ($0.023/GB/mo) | GCS ($0.020/GB/mo) | Local | Local |
+| Best For | On-demand cloud | Multi-region cloud | Large datasets | Large datasets |
+| Scalability | Excellent | Excellent | Good | Good |
+| Data Transfer | Can be expensive | Can be expensive | Free (local) | Free (local) |
+
+*Assuming you already have cluster access
+
+**Cost varies by instance/machine type and region
+
+### General Cloud Best Practices
+
+1. **Use Profile Combinations**:
+   ```bash
+   # Combine cloud profile with container profile
+   nextflow run main.nf \
+     --input data.h5ad \
+     -profile gcp,docker
+   ```
+
+2. **Set Resource Limits**:
+   ```bash
+   nextflow run main.nf \
+     --input data.h5ad \
+     --max_cpus 8 \
+     --max_memory 32.GB \
+     --max_time 24.h \
+     -profile aws
+   ```
+
+3. **Monitor Costs**:
+   - Set up billing alerts in AWS/GCP
+   - Check logs regularly for failed jobs (retries add costs)
+   - Use preemptible/spot instances when possible
+
+4. **Data Management**:
+   - Upload data to cloud storage first (faster pipeline execution)
+   - Use `-resume` flag to restart from failed tasks
+   - Archive results to cheaper storage after analysis
+
+5. **Error Recovery**:
+   ```bash
+   # Resume a failed run from checkpoint
+   nextflow run main.nf \
+     --input s3://bucket/data.h5ad \
+     -profile aws \
+     -resume
+   ```
+
+### Troubleshooting Cloud Execution
+
+**AWS Batch Issues**:
+- "Job failed to submit": Check IAM permissions and compute environment configuration
+- "Container image not found": Verify ECR repository and image tag
+- "Insufficient capacity": Use different availability zones or instance types
+
+**GCP Issues**:
+- "API not enabled": Run `gcloud services enable lifesciences.googleapis.com`
+- "Access denied": Check service account permissions with `gcloud projects get-iam-policy`
+- "Image pull failed": Verify Artifact Registry repository and authentication
+
+**HPC Issues**:
+- "Singularity image not found": Check cache directory permissions and image path
+- "Job queued but not running": Check queue status with `squeue` (Slurm) or `qstat` (PBS)
+- "Memory limit exceeded": Increase `--max_memory` parameter
+
 ## QC Metrics
 
 The pipeline calculates and visualizes the following QC metrics:
