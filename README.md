@@ -9,7 +9,21 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Data Import**: Support for multiple input formats (10X Genomics, H5AD, CSV)
 - **Quality Control**: Cell and gene filtering based on QC metrics
 - **Doublet Detection**: Scrublet, scDblFinder, and decontamination with DecontX
-- **QC Visualization**: Comprehensive plots and reports
+- **Multi-sample Integration**: Harmony, Scanorama, BBKNN, scVI for combining multiple samples
+- **Normalization**: Library size normalization and log transformation
+- **Feature Selection**: Highly variable gene identification
+- **Dimensionality Reduction**: PCA, UMAP, and t-SNE embeddings
+- **Clustering**: Leiden, Louvain, Seurat SNN, and Celda clustering algorithms
+- **Differential Expression**: Marker gene identification with multiple statistical methods
+- **Cell Type Annotation**: Automated cell type prediction based on marker genes
+- **Gene Set Enrichment**: Pathway scoring and functional enrichment analysis
+- **Batch Correction**: Automatic detection and correction of batch effects
+- **Cell Cycle Analysis**: Phase scoring (G1/S/G2M) with optional regression
+- **Trajectory Analysis**: Pseudotime inference using PAGA and diffusion maps
+- **Cell-Cell Communication**: Ligand-receptor interaction analysis between cell types
+- **HTML Report Generation**: Self-contained interactive reports with embedded visualizations
+- **Data Export**: Multi-format export for interoperability (Seurat, Loom, CellxGene, CSV, 10X MTX)
+- **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
 
@@ -87,6 +101,77 @@ The pipeline supports the following input formats:
 | `--exclude_mt` | false | Exclude mitochondrial genes |
 | `--exclude_ribo` | false | Exclude ribosomal genes |
 
+### Multi-sample Integration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--sample_ids` | auto | Sample identifiers (comma-separated or 'auto' for filename-based) |
+| `--integration_method` | harmony | Integration method: 'concat', 'harmony', 'scanorama', 'bbknn', 'scvi' |
+| `--run_integration` | true | Enable sample integration (auto-disabled for single sample) |
+
+**Supported Input Patterns for Multiple Samples:**
+
+```bash
+# Glob pattern for multiple h5ad files
+nextflow run main.nf --input "samples/*.h5ad" -profile conda
+
+# Multiple 10X directories
+nextflow run main.nf --input "data/sample*/filtered_feature_bc_matrix" -profile conda
+
+# Explicit sample IDs
+nextflow run main.nf \
+  --input "samples/*.h5ad" \
+  --sample_ids "Control_1,Control_2,Treatment_1,Treatment_2" \
+  -profile conda
+```
+
+**Integration Methods:**
+
+- **concat** - Simple concatenation without correction (baseline)
+- **harmony** (default) - Fast, embedding-based integration via Harmony algorithm
+- **scanorama** - Panoramic stitching for batch integration
+- **bbknn** - Batch-balanced k-nearest neighbors graph
+- **scvi** - Variational autoencoder-based integration (requires scvi-tools)
+
+**Workflow for Multi-sample Analysis:**
+
+1. Each sample is processed in parallel through:
+   - Data import
+   - QC filtering
+   - Doublet detection
+
+2. All QC'd samples are integrated:
+   - Common genes identified
+   - Samples merged with sample labels
+   - Integration method applied (if not 'concat')
+
+3. Downstream analysis continues on integrated data:
+   - Normalization
+   - HVG selection
+   - Dimensionality reduction
+   - Clustering (with proper batch handling)
+   - Cell type annotation
+   - etc.
+
+**Example with Harmony Integration:**
+
+```bash
+nextflow run main.nf \
+  --input "data/sample*.h5ad" \
+  --sample_ids "Sample1,Sample2,Sample3" \
+  --integration_method harmony \
+  --batch_key sample \
+  -profile conda
+```
+
+**Important Notes:**
+
+- Sample information is stored in `adata.obs['sample']`
+- Use `--batch_key sample` for downstream batch correction to leverage sample info
+- Integration runs after QC but before normalization
+- Single sample inputs skip the integration step automatically
+- QC plots and summaries are generated per-sample before integration
+
 ### Doublet Detection
 
 | Parameter | Default | Description |
@@ -99,6 +184,474 @@ The pipeline supports the following input formats:
 | `--expected_doublet_rate` | 0.06 | Expected doublet rate (typically 0.05-0.1) |
 
 **Note**: R-based tools (scDblFinder, DecontX) are only available when using the `conda` profile. The Docker image supports Python-based Scrublet and simple ambient RNA estimation.
+
+### Normalization
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--target_sum` | auto | Target sum for normalization (auto uses median) |
+| `--log_transform` | true | Apply log1p transformation after normalization |
+
+### Highly Variable Genes
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--n_top_genes` | 2000 | Number of top HVGs to select |
+| `--hvg_min_mean` | 0.0125 | Minimum mean expression threshold |
+| `--hvg_max_mean` | 3 | Maximum mean expression threshold |
+| `--hvg_min_disp` | 0.5 | Minimum dispersion threshold |
+| `--hvg_flavor` | seurat | HVG selection method ('seurat' or 'cell_ranger') |
+
+### Dimensionality Reduction
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--n_pcs` | 50 | Number of principal components |
+| `--n_neighbors` | 15 | Number of neighbors for UMAP |
+| `--run_umap` | true | Compute UMAP embedding |
+| `--run_tsne` | false | Compute t-SNE embedding (slower) |
+| `--umap_min_dist` | 0.5 | UMAP min_dist parameter |
+| `--tsne_perplexity` | 30 | t-SNE perplexity parameter |
+
+### Clustering
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_leiden` | true | Run Leiden clustering (recommended) |
+| `--run_louvain` | false | Run Louvain clustering |
+| `--leiden_resolution` | 1.0 | Leiden resolution (higher = more clusters) |
+| `--louvain_resolution` | 1.0 | Louvain resolution (higher = more clusters) |
+| `--cluster_key` | auto | Primary cluster key ('auto', 'leiden', 'louvain') |
+| `--run_seurat_clustering` | false | Run Seurat SNN clustering (R-based, requires rpy2 + Seurat) |
+| `--run_celda` | false | Run Celda clustering (R-based, requires rpy2 + celda) |
+| `--seurat_resolution` | 0.8 | Seurat clustering resolution |
+| `--celda_L` | auto | Number of cell modules for Celda (auto or integer) |
+| `--celda_K` | auto | Number of gene modules for Celda (auto or integer) |
+
+**Note**: R-based clustering methods (Seurat, Celda) require manual installation of rpy2 and the corresponding R packages. See the [R-based Clustering](#r-based-clustering) section for setup instructions.
+
+### Differential Expression
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_diff_expression` | true | Run differential expression analysis |
+| `--de_method` | wilcoxon | Statistical method: 'wilcoxon', 't-test', 'logreg' |
+| `--de_n_genes` | 25 | Number of top marker genes per cluster |
+| `--de_min_fold_change` | 1.5 | Minimum fold change threshold |
+| `--de_min_in_group_fraction` | 0.25 | Minimum fraction of cells expressing marker in cluster |
+| `--de_max_out_group_fraction` | 0.5 | Maximum fraction of cells expressing marker outside cluster |
+
+### Cell Type Annotation
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_annotation` | true | Run cell type annotation |
+| `--annotation_method` | celltypist | Method: 'celltypist' (pre-trained models) or 'marker_scoring' |
+| `--celltypist_model` | Immune_All_Low.pkl | CellTypist model name (see below for options) |
+| `--marker_file` | default | Marker gene file for marker_scoring method |
+
+**CellTypist Models:**
+
+Available pre-trained models include:
+- `Immune_All_Low.pkl` - Immune cells, low resolution (default)
+- `Immune_All_High.pkl` - Immune cells, high resolution
+- `Developing_Human_Brain.pkl` - Brain cell types
+- `Adult_Mouse_Gut.pkl` - Mouse gut cell types
+- And many more at [CellTypist models](https://www.celltypist.org/models)
+
+**Example using CellTypist:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --annotation_method celltypist \
+  --celltypist_model Immune_All_High.pkl \
+  -profile conda
+```
+
+**Custom Marker File Format (for marker_scoring method):**
+
+JSON format:
+```json
+{
+  "T_cells": ["CD3D", "CD3E", "CD4", "CD8A"],
+  "B_cells": ["CD19", "MS4A1", "CD79A"],
+  "NK_cells": ["NKG7", "GNLY", "KLRD1"]
+}
+```
+
+CSV format:
+```csv
+cell_type,gene
+T_cells,CD3D
+T_cells,CD3E
+B_cells,CD19
+B_cells,MS4A1
+```
+
+### Gene Set Enrichment
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_gsea` | true | Run gene set enrichment analysis |
+| `--gsea_gene_sets` | default | Gene set database: 'default', 'GO', 'KEGG', or custom file path |
+| `--gsea_n_top_genes` | 100 | Number of top marker genes to use for enrichment |
+
+**Available Gene Sets:**
+
+- `default` - Hallmark gene sets (MSigDB) plus cell type signatures
+- `GO` - Gene Ontology Biological Process terms (via Enrichr)
+- `KEGG` - KEGG pathway database (via Enrichr)
+- Custom file path - Your own gene set file (JSON or GMT format)
+
+**Example using specific gene sets:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_gsea true \
+  --gsea_gene_sets GO \
+  --gsea_n_top_genes 150 \
+  -profile conda
+```
+
+**Built-in Hallmark Pathways:**
+
+The default gene sets include MSigDB Hallmark pathways:
+- HALLMARK_INFLAMMATORY_RESPONSE
+- HALLMARK_INTERFERON_GAMMA_RESPONSE
+- HALLMARK_INTERFERON_ALPHA_RESPONSE
+- HALLMARK_APOPTOSIS
+- HALLMARK_OXIDATIVE_PHOSPHORYLATION
+- HALLMARK_GLYCOLYSIS
+- HALLMARK_P53_PATHWAY
+- HALLMARK_DNA_REPAIR
+- HALLMARK_HYPOXIA
+- HALLMARK_MYC_TARGETS
+- HALLMARK_E2F_TARGETS
+
+Plus cell type-specific signatures (T_cell, B_cell, NK_cell, Monocyte, DC).
+
+**Custom Gene Set Format (JSON):**
+```json
+{
+  "Pathway_Name": ["GENE1", "GENE2", "GENE3"],
+  "Another_Pathway": ["GENE4", "GENE5", "GENE6"]
+}
+```
+
+**Outputs:**
+- Cell-level pathway scores (can be visualized on UMAP)
+- Enrichr API results for each cluster's marker genes (if gseapy installed)
+- Enrichment plots showing pathway activities across clusters
+
+### Batch Correction
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_batch_correction` | true | Run batch effect detection and correction |
+| `--batch_key` | batch | Column in obs containing batch information |
+| `--batch_correction_method` | harmony | Method: 'harmony', 'combat', 'bbknn', 'scanorama' |
+| `--batch_effect_threshold` | 0.3 | Threshold for applying correction (0-1 scale) |
+
+**Automatic Batch Effect Detection:**
+
+The pipeline automatically assesses batch effects using multiple metrics:
+- **PCA variance explained by batch** - R² of batch as predictor of PC coordinates
+- **Batch silhouette score** - How well cells cluster by batch in PCA space
+- **kBET-like deviation** - Whether local neighborhoods maintain global batch proportions
+
+These metrics are combined into a single score (0-1). Correction is only applied if the score exceeds the threshold.
+
+**Available Correction Methods:**
+
+- `harmony` (default) - Fast, embedding-based correction via Harmony algorithm
+- `combat` - ComBat batch adjustment on expression matrix
+- `bbknn` - Batch-balanced k-nearest neighbors graph
+- `scanorama` - Panoramic stitching for batch integration
+
+**Example with batch correction:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --batch_key sample_id \
+  --batch_correction_method harmony \
+  --batch_effect_threshold 0.25 \
+  -profile conda
+```
+
+**Important Notes:**
+- Batch correction runs after dimensionality reduction but before clustering
+- If no batch key is found in the data, correction is skipped automatically
+- If only one batch is present, correction is skipped
+- Post-correction metrics show the effectiveness of the correction
+
+**Outputs:**
+- Batch effect assessment metrics (before and after correction)
+- UMAP visualizations colored by batch (before/after)
+- Batch composition per cluster plots
+- Summary of whether correction was applied and why
+
+### Cell Cycle Scoring
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_cell_cycle` | true | Run cell cycle phase scoring |
+| `--regress_cell_cycle` | false | Regress out cell cycle effects from expression |
+
+**Features:**
+- Scores cells for S and G2M phases using Tirosh et al. (2016) gene sets
+- Assigns cells to G1, S, or G2M phase based on scores
+- Optional regression to remove cell cycle effects from downstream analysis
+- Works with human gene symbols
+
+**Example with cell cycle regression:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_cell_cycle true \
+  --regress_cell_cycle true \
+  -profile conda
+```
+
+**Important Notes:**
+- Runs after normalization but before HVG selection
+- If regress_cell_cycle=true, expression matrix is modified
+- Best for datasets where cell cycle is a confounding factor
+- Phase assignment based on relative S and G2M scores
+
+**Outputs:**
+- Cell cycle phase assignments (G1, S, G2M)
+- S and G2M phase scores for each cell
+- Phase distribution plots and UMAP visualizations
+- Phase composition per cluster
+
+### Trajectory Analysis
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_trajectory` | true | Run trajectory/pseudotime analysis |
+| `--trajectory_root` | auto | Root cell: 'auto', cluster ID, or cell barcode |
+| `--n_diffusion_comps` | 15 | Number of diffusion components |
+
+**Methods:**
+- **PAGA** (Partition-based Graph Abstraction) - Infers connectivity between clusters
+- **Diffusion Pseudotime** - Orders cells along developmental trajectory
+- **Force-directed Layout** - PAGA-initialized graph visualization
+
+**Root Cell Selection:**
+- `auto` - Automatically selects based on diffusion component extremes or stem markers
+- Cluster ID (e.g., `0`) - Selects root from specified cluster
+- Cell barcode - Uses specific cell as root
+
+**Example with specific root:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_trajectory true \
+  --trajectory_root 0 \
+  --n_diffusion_comps 20 \
+  -profile conda
+```
+
+**Use Cases:**
+- Developmental trajectories (stem cells → differentiated)
+- Cell state transitions
+- Lineage relationships between clusters
+- Identifying branch points
+
+**Outputs:**
+- Diffusion pseudotime values for each cell
+- PAGA connectivity graph between clusters
+- Diffusion map coordinates
+- Trajectory visualizations on UMAP and force-directed layouts
+- Pseudotime distribution per cluster
+
+### Cell-Cell Communication
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_communication` | true | Run cell-cell communication analysis |
+| `--communication_cell_type_key` | auto | Cell type annotation column to use |
+| `--communication_min_cells` | 10 | Minimum cells per cell type |
+| `--communication_n_permutations` | 100 | Permutations for significance testing |
+
+**Features:**
+- **CellPhoneDB integration** - Uses CellPhoneDB's curated database with 1000+ L-R pairs
+- Fallback to built-in curated database if CellPhoneDB not installed
+- Permutation testing for statistical significance
+- Network visualization of cell-cell interactions
+- Identifies active sender and receiver cell types
+
+**Methods:**
+- **CellPhoneDB** (default if installed) - Established tool with comprehensive L-R database
+- **Built-in database** (fallback) - 45+ curated pairs including:
+  - Chemokines (CCL/CXCL - CCR/CXCR)
+  - Cytokines (IL, IFN, TNF, TGF)
+  - Growth factors (EGF, VEGF, FGF, PDGF)
+  - Immune checkpoints (PD-L1/PD-1, CD80/CD28, CTLA4)
+  - MHC interactions (HLA-CD8/CD4)
+  - Adhesion molecules (ICAM, VCAM)
+  - Notch and Wnt signaling
+
+**Example:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_communication true \
+  --communication_min_cells 20 \
+  --communication_n_permutations 1000 \
+  -profile conda
+```
+
+**Outputs:**
+- Ligand-receptor pair scores for all cell type combinations
+- Communication matrix (sender × receiver)
+- Network visualization of interactions
+- Top active L-R pairs and cell types
+- Significance testing results (p-values from permutations)
+
+### HTML Report Generation
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--generate_report` | true | Generate comprehensive HTML report |
+| `--report_title` | nf-scrnaseq Analysis Report | Report title |
+
+### Data Export
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--export_seurat` | true | Export Seurat-compatible H5AD (convertible to RDS) |
+| `--export_loom` | true | Export Loom format for web-based viewing |
+| `--export_cellxgene` | true | Export CellxGene-ready H5AD with metadata |
+| `--export_csv` | true | Export expression matrix and metadata as CSV |
+| `--export_mtx` | true | Export 10X Market Matrix format |
+
+**Export Formats:**
+
+1. **Seurat Format** - Seurat-compatible H5AD file that can be:
+   - Loaded directly into R with: `library(SeuratDisk); obj <- LoadH5Seurat('data_seurat_compatible.h5ad')`
+   - Converted to RDS format with R (see export logs for instructions)
+
+2. **Loom Format** - Interactive format for web-based visualization
+   - View with Loom viewer at http://loom.linnarssonlab.org/
+   - Preserves all cell and gene metadata
+   - Optimized for large datasets
+
+3. **CellxGene Format** - H5AD with proper metadata structure
+   - Compatible with cellxgene for interactive exploration
+   - Includes cell type annotations and embeddings
+   - Can be hosted on CellxGene census
+
+4. **CSV Files** - Plain text exports
+   - Expression matrix (compressed as .csv.gz)
+   - Cell metadata with annotations
+   - Gene metadata with statistics
+   - All embeddings (UMAP, PCA, etc.)
+   - Easy to load in any programming environment
+
+5. **10X MTX Format** - Market matrix format
+   - Compatible with Seurat: `Read10X(data.dir = 'mtx/')`
+   - Compatible with Scanpy: `sc.read_mtx('matrix.mtx')`
+   - Includes barcodes.tsv and features.tsv
+   - Widely supported across tools
+
+**Export Output Structure:**
+
+```
+results/data_export/
+├── export_summary.txt              # Summary of all exports
+├── export_manifest.json            # Machine-readable manifest
+├── logs/
+│   └── export_log.txt              # Detailed export log
+├── seurat/
+│   └── data_seurat_compatible.h5ad # Seurat-loadable file
+├── loom/
+│   └── data.loom                   # Loom format file
+├── cellxgene/
+│   └── data_cellxgene.h5ad         # CellxGene-ready file
+├── csv/
+│   ├── expression_matrix.csv.gz    # Compressed expression
+│   ├── cell_metadata.csv           # Cell annotations
+│   ├── gene_metadata.csv           # Gene information
+│   └── X_*.csv                     # Embeddings
+└── mtx/
+    ├── matrix.mtx                  # Market matrix
+    ├── features.tsv                # Gene metadata
+    └── barcodes.tsv                # Cell barcodes
+```
+
+**Usage Examples:**
+
+Load in Python (Scanpy):
+```python
+import pandas as pd
+import scanpy as sc
+
+# From CSV
+counts = pd.read_csv('results/data_export/csv/expression_matrix.csv.gz', index_col=0)
+metadata = pd.read_csv('results/data_export/csv/cell_metadata.csv', index_col=0)
+
+# From Loom
+adata = sc.read_loom('results/data_export/loom/data.loom')
+
+# From CellxGene H5AD
+adata = sc.read_h5ad('results/data_export/cellxgene/data_cellxgene.h5ad')
+```
+
+Load in R (Seurat):
+```r
+library(SeuratDisk)
+library(Seurat)
+
+# From H5Seurat
+obj <- LoadH5Seurat('results/data_export/seurat/data_seurat_compatible.h5ad')
+
+# From 10X MTX
+library(Seurat)
+data <- Read10X(data.dir = 'results/data_export/mtx/')
+obj <- CreateSeuratObject(counts = data)
+
+# From CSV
+counts <- read.csv('results/data_export/csv/expression_matrix.csv.gz', row.names=1)
+metadata <- read.csv('results/data_export/csv/cell_metadata.csv', row.names=1)
+```
+
+**Features:**
+- Self-contained HTML report with embedded visualizations
+- Summary statistics (cells, genes, clusters, cell types)
+- Interactive collapsible sections
+- QC metrics and distribution plots
+- Cluster composition tables
+- Cell type annotation results
+- Top marker genes per cluster (expandable)
+- Cell cycle phase distribution
+- Pseudotime/trajectory results
+- Responsive design for any screen size
+
+**What's Included:**
+- **Quality Control**: Cell/gene counts, mitochondrial percentage, doublet detection
+- **Clustering**: Cluster distribution tables and UMAP visualizations
+- **Cell Type Annotation**: Cell type composition and proportions
+- **Differential Expression**: Top 10 marker genes per cluster with statistics
+- **Cell Cycle**: Phase distribution (G1/S/G2M)
+- **Trajectory**: Pseudotime range and UMAP colored by pseudotime
+- **Dataset Information**: AnnData structure and available embeddings
+
+**Example:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --generate_report true \
+  --report_title "My scRNA-seq Analysis" \
+  -profile conda
+```
+
+**Outputs:**
+- `pipeline_report.html` - Self-contained HTML report
+- `report_data/summary.json` - Machine-readable summary statistics
+- `report_data/cell_metadata.csv` - Cell-level annotations
+- `report_data/gene_metadata.csv` - Gene-level information
+- `report_plots/` - Individual plot files (PNG)
 
 ### Output
 
@@ -119,11 +672,424 @@ results/
 │   ├── qc_metrics.csv            # QC metrics per cell
 │   ├── qc_plots.pdf              # QC visualization plots
 │   └── qc_summary.txt            # QC filtering summary
-└── doublet_decontam/
-    ├── doublet_scored.h5ad       # Data with doublet scores
-    ├── doublet_scores.csv        # Doublet scores per cell
-    ├── doublet_plots.pdf         # Doublet score visualizations
-    └── doublet_summary.txt       # Doublet detection summary
+├── doublet_decontam/              # (if enabled)
+│   ├── doublet_scored.h5ad       # Data with doublet scores
+│   ├── doublet_scores.csv        # Doublet scores per cell
+│   ├── doublet_plots.pdf         # Doublet score visualizations
+│   └── doublet_summary.txt       # Doublet detection summary
+├── integration/                   # (if multi-sample)
+│   ├── integrated.h5ad           # Merged and integrated data
+│   ├── integration_plots.pdf     # Sample composition and mixing plots
+│   └── integration_summary.txt   # Integration analysis summary
+├── normalize/
+│   ├── normalized.h5ad           # Normalized data
+│   └── normalization_summary.txt # Normalization parameters
+├── cell_cycle/                    # (if enabled)
+│   ├── cell_cycle_scored.h5ad   # Data with cell cycle scores
+│   ├── cell_cycle_scores.csv    # Phase scores and assignments
+│   ├── cell_cycle_plots.pdf     # Phase distribution visualizations
+│   └── cell_cycle_summary.txt   # Cell cycle analysis summary
+├── hvg/
+│   ├── hvg_selected.h5ad         # Data with HVG annotations
+│   ├── hvg_genes.csv             # HVG gene list with statistics
+│   ├── hvg_plots.pdf             # HVG selection plots
+│   └── hvg_summary.txt           # HVG selection summary
+├── dim_reduction/
+│   ├── reduced_dims.h5ad         # Data with embeddings (PCA, UMAP, t-SNE)
+│   ├── dim_reduction_plots.pdf   # PCA variance, UMAP, t-SNE plots
+│   └── dim_reduction_summary.txt # Dimensionality reduction summary
+├── batch_correction/              # (if enabled)
+│   ├── batch_corrected.h5ad     # Data with batch correction applied
+│   ├── batch_assessment.csv     # Batch effect metrics
+│   ├── batch_correction_plots.pdf # UMAP before/after, metrics
+│   └── batch_correction_summary.txt # Correction decision and results
+├── clustering/
+│   ├── clustered.h5ad            # Data with cluster assignments
+│   ├── cluster_assignments.csv   # Cluster labels per cell
+│   ├── clustering_plots.pdf      # Cluster visualizations on UMAP/PCA
+│   └── clustering_summary.txt    # Clustering summary and statistics
+├── diff_expression/               # (if enabled)
+│   ├── de_results.h5ad           # Data with DE results stored
+│   ├── marker_genes.csv          # All marker gene statistics
+│   ├── top_markers_per_cluster.csv # Top N markers per cluster
+│   ├── de_plots.pdf              # Dot plots, heatmaps, violin plots
+│   └── de_summary.txt            # DE analysis summary
+├── annotation/                    # (if enabled)
+│   ├── annotated.h5ad            # Data with cell type annotations
+│   ├── cell_type_scores.csv      # Cell type scores for each cell
+│   ├── cluster_annotations.csv   # Cluster-level type assignments
+│   ├── annotation_plots.pdf      # Cell type distribution and heatmaps
+│   └── annotation_summary.txt    # Annotation summary
+├── gsea/                          # (if enabled)
+│   ├── gsea_results.h5ad         # Data with pathway scores added
+│   ├── enrichment_results.csv    # Enrichr API results per cluster
+│   ├── pathway_scores.csv        # Pathway scores for each cell
+│   ├── gsea_plots.pdf            # Pathway enrichment heatmaps
+│   └── gsea_summary.txt          # GSEA analysis summary
+├── trajectory/                    # (if enabled)
+│   ├── trajectory_results.h5ad  # Data with pseudotime and PAGA
+│   ├── pseudotime.csv           # Pseudotime values per cell
+│   ├── trajectory_plots.pdf     # PAGA, diffusion maps, pseudotime plots
+│   └── trajectory_summary.txt   # Trajectory analysis summary
+├── cell_communication/            # (if enabled)
+│   ├── communication_results.h5ad # Data with communication metadata
+│   ├── ligand_receptor_pairs.csv # All L-R interaction scores
+│   ├── communication_matrix.csv  # Sender × receiver matrix
+│   ├── communication_plots.pdf   # Network and heatmap visualizations
+│   └── communication_summary.txt # Communication analysis summary
+└── report/                        # (if enabled)
+    ├── pipeline_report.html      # Self-contained HTML report
+    ├── report_data/
+    │   ├── summary.json          # Machine-readable statistics
+    │   ├── cell_metadata.csv     # All cell-level annotations
+    │   └── gene_metadata.csv     # Gene-level information
+    └── report_plots/
+        ├── qc_distributions.png  # QC metric histograms
+        ├── umap_clusters.png     # UMAP colored by cluster/cell type
+        ├── cell_cycle.png        # Cell cycle phase distribution
+        └── pseudotime.png        # Pseudotime on UMAP
+```
+
+## Containerization
+
+The pipeline supports multiple containerization approaches: Docker, Singularity, and Conda. This allows reproducible execution across different computing environments.
+
+### Docker Setup
+
+#### Prerequisites
+
+- Docker >= 20.10
+- At least 2GB free disk space
+- Docker daemon running
+
+#### Building the Docker Image
+
+Build the Docker image with all Python dependencies:
+
+```bash
+# Build the image with the default tag
+docker build -t nf-scrnaseq:latest .
+
+# Or with a custom tag and registry
+docker build -t your-registry/nf-scrnaseq:1.0 .
+```
+
+The Dockerfile includes:
+- Base Ubuntu 22.04 image
+- Python 3.10 with all system dependencies
+- All Python packages: scanpy, pandas, numpy, matplotlib, seaborn, leidenalg, harmonypy, scanorama, bbknn, cellphonedb, gseapy, scrublet, celltypist, and more
+- Pre-configured working directory
+
+#### Pushing to a Docker Registry
+
+To share your image, push it to a registry (Docker Hub, Quay.io, etc.):
+
+```bash
+# Login to Docker Hub
+docker login
+
+# Push the image
+docker push your-username/nf-scrnaseq:latest
+```
+
+Then modify `nextflow.config` Docker profile:
+```groovy
+docker {
+    docker.enabled = true
+    process.container = 'your-username/nf-scrnaseq:latest'
+}
+```
+
+#### Running with Docker Profile
+
+```bash
+# Basic run
+nextflow run main.nf --input data/ -profile docker
+
+# With custom parameters
+nextflow run main.nf \
+  --input data/ \
+  --integration_method harmony \
+  --n_top_genes 3000 \
+  -profile docker
+
+# Test run with Docker
+nextflow run main.nf -profile test,docker
+
+# With custom Docker options (specify container registry)
+nextflow run main.nf --input data/ -profile docker
+```
+
+#### Docker-Specific Configurations
+
+The Docker profile in `nextflow.config` includes:
+- User ID/GID mapping: `-u $(id -u):$(id -g)` - runs with your user permissions
+- Temp directory: `/tmp` - uses container's temp space
+- Mount flags: `z` - SELinux compatibility
+- Auto-pull on first run
+
+#### Troubleshooting Docker
+
+**Issue**: "Cannot connect to Docker daemon"
+```bash
+# Ensure Docker is running
+sudo systemctl start docker  # Linux
+open -a Docker              # macOS
+```
+
+**Issue**: "Insufficient space"
+```bash
+# Clean up unused Docker resources
+docker system prune -a
+```
+
+**Issue**: Permission denied errors
+```bash
+# Run with appropriate permissions (or add user to docker group)
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+### Singularity Setup
+
+#### Prerequisites
+
+- Singularity >= 3.0 (or Apptainer on newer systems)
+- No Docker daemon required
+- Useful for HPC environments with restricted privileges
+
+#### Option 1: Using Pre-built Galaxy Image
+
+The easiest approach - uses an existing scanpy image from Galaxy:
+
+```bash
+# Run directly (pulls from Galaxy automatically)
+nextflow run main.nf --input data/ -profile singularity
+```
+
+This uses: `https://depot.galaxyproject.org/singularity/scanpy:1.9.3--pyhdfd78af_0`
+
+#### Option 2: Convert Docker Image to Singularity
+
+Build a Singularity image from your Docker image:
+
+```bash
+# Method 1: From Docker Hub (requires Docker)
+singularity build nf-scrnaseq.sif docker://nf-scrnaseq:latest
+
+# Method 2: From local Docker image (using docker daemon)
+singularity build nf-scrnaseq.sif docker-daemon://nf-scrnaseq:latest
+
+# Method 3: From Dockerfile directly
+singularity build nf-scrnaseq.sif Dockerfile
+```
+
+Then update `nextflow.config`:
+```groovy
+singularity_local {
+    singularity.enabled = true
+    process.container = 'nf-scrnaseq.sif'
+}
+```
+
+Run with:
+```bash
+nextflow run main.nf --input data/ -profile singularity_local
+```
+
+#### Option 3: Build from Definition File
+
+Create a Singularity definition file (`.def`) and build:
+
+```bash
+singularity build nf-scrnaseq.sif Singularity.def
+```
+
+#### Running with Singularity Profile
+
+```bash
+# Using pre-built Galaxy image (default)
+nextflow run main.nf --input data/ -profile singularity
+
+# Using local Singularity image
+nextflow run main.nf --input data/ -profile singularity_local
+
+# Test run with Singularity
+nextflow run main.nf -profile test,singularity
+```
+
+#### Singularity-Specific Configurations
+
+The Singularity profile includes:
+- Auto-mount: Automatically mount home and work directories
+- Cache directory: `~/.singularity-cache` for downloaded images
+- Pull timeout: 20 minutes for remote images
+- No Docker requirement
+
+#### HPC Cluster Setup (Singularity)
+
+For HPC systems, Singularity is often required instead of Docker:
+
+```bash
+# Load Singularity module (HPC-specific)
+module load singularity
+
+# Run on HPC with job submission
+nextflow run main.nf \
+  --input /path/to/data \
+  -profile singularity \
+  -executor slurm \
+  -with-slurm
+```
+
+Add to `nextflow.config` for HPC:
+```groovy
+executor {
+    name = 'slurm'
+    queueSize = 20
+    submitRateLimit = '1 sec'
+}
+```
+
+### Conda Setup (Alternative to Containers)
+
+If containers aren't available, use Conda:
+
+```bash
+# Conda will create environment automatically
+nextflow run main.nf --input data/ -profile conda
+
+# First run takes longer; subsequent runs use cached environment
+nextflow run main.nf --input data/ -profile conda  # Much faster
+
+# Clean conda cache (if needed)
+rm -rf ~/.nextflow-conda-cache
+```
+
+#### Conda Cache Management
+
+```bash
+# Set custom conda cache location
+export NXF_CONDA_CACHEDIR=/path/to/cache
+nextflow run main.nf -profile conda
+```
+
+### Comparing Execution Profiles
+
+| Feature | Docker | Singularity | Conda |
+|---------|--------|-------------|-------|
+| Setup time | ~5-10 min | 2-5 min* | ~20-30 min (first run) |
+| Runtime overhead | ~5% | ~2-3% | ~0% |
+| HPC friendly | Sometimes | Yes | Yes |
+| Privileges needed | Daemon access | User-level | User-level |
+| Reproducibility | Very high | Very high | High |
+| Portability | Excellent | Excellent | Good |
+| Container size | 1-2 GB | 1-2 GB | Variable |
+
+*If using pre-built Galaxy image; custom image build takes longer
+
+### Performance Considerations
+
+#### Docker
+- Best for local development and CI/CD
+- Supports layer caching for faster rebuilds
+- Good performance on Linux hosts
+- Overhead on macOS/Windows (VM-based)
+
+#### Singularity
+- Excellent for HPC clusters
+- No daemon overhead
+- Fast image pull and execution
+- Growing support in cloud environments
+
+#### Conda
+- Slowest first run (environment creation)
+- Fastest subsequent runs
+- Useful when containers unavailable
+- Better for interactive debugging
+
+### Container Customization
+
+#### Adding New Python Packages
+
+Edit `Dockerfile`:
+```dockerfile
+RUN pip install --no-cache-dir \
+    new-package==1.0.0
+```
+
+Rebuild:
+```bash
+docker build -t nf-scrnaseq:latest .
+```
+
+#### Using Custom Container Images
+
+#### Docker Hub
+```groovy
+docker {
+    process.container = 'your-username/nf-scrnaseq:v2.0'
+}
+```
+
+#### Private Registry
+```groovy
+docker {
+    docker.registry = 'private.registry.com'
+    process.container = 'private.registry.com/nf-scrnaseq:latest'
+}
+```
+
+#### Quay.io
+```groovy
+docker {
+    docker.registry = 'quay.io'
+    process.container = 'quay.io/your-org/nf-scrnaseq:latest'
+}
+```
+
+### Environment Variables
+
+Inside containers, the following are set:
+```bash
+PYTHONNOUSERSITE=1        # Isolate from system Python
+PYTHONUNBUFFERED=1        # Real-time output
+NXF_CONDA_CACHEDIR        # Conda cache (conda profile)
+```
+
+### Volumes and Mounts
+
+Data is automatically available in containers:
+- Input data: Mounted from host
+- Output directory: Mounted from host
+- Temp files: Used in container's `/tmp`
+
+No need to explicitly mount volumes - Nextflow handles this.
+
+### Security Considerations
+
+#### Data Privacy
+- Containers run in isolated filesystem namespaces
+- Data is not persisted in container layers
+- Clean up containers after runs
+
+#### Root Privileges
+Docker profile runs with user ID mapping:
+```bash
+docker.runOptions = '-u $(id -u):$(id -g)'
+```
+
+Files created are owned by your user, not root.
+
+#### Sensitive Data
+Never hardcode credentials in Dockerfile. Use:
+```bash
+# Pass as environment variables
+nextflow run main.nf -e API_KEY=xxx
+
+# Or use .env files
+export API_KEY=xxx
+nextflow run main.nf
 ```
 
 ## Profiles
@@ -134,9 +1100,10 @@ The pipeline supports multiple execution profiles:
 - **`conda`**: Use Conda environments (recommended if Docker not available)
 - **`singularity`**: Use Singularity containers
 - **`test`**: Run with test dataset (combine with docker/conda, e.g., `-profile test,conda`)
-  - Uses synthetic test data with 50 cells and 100 genes
-  - Automatically applies relaxed QC thresholds (min_genes=10, max_genes=100, min_cells=1)
-  - Test data is intentionally sparse to enable quick validation
+  - Uses realistic PBMC test data with 200 cells and 105 genes
+  - Includes real gene symbols (T cell, B cell, Monocyte, NK cell markers)
+  - Ground truth cell types for validation (`cell_types_ground_truth.csv`)
+  - Enables full pipeline testing including cell type annotation
 
 Examples:
 ```bash
@@ -150,7 +1117,497 @@ nextflow run main.nf --input data/ -profile conda
 nextflow run main.nf -profile test,conda
 ```
 
-**Note**: For real scRNA-seq data, use the default QC parameters (min_genes=200, max_genes=2500) which are appropriate for typical datasets.
+**Note**: For real scRNA-seq data, use the default QC parameters (min_genes=200, max_genes=2500) which are appropriate for typical datasets. The test data uses smaller thresholds due to the reduced gene set.
+
+
+## Cloud Execution Profiles
+
+The pipeline includes configurations for cloud execution on AWS, Google Cloud Platform, and HPC schedulers (Slurm/PBS). These profiles handle container orchestration, resource management, and storage integration for each platform.
+
+### AWS Batch Execution
+
+AWS Batch is Amazon's managed job scheduling and execution service. It automatically provisions compute resources and submits jobs.
+
+#### Prerequisites
+
+1. **AWS Account** - Active AWS account with billing enabled
+2. **AWS CLI** - Installed and configured with credentials
+   ```bash
+   # Install AWS CLI
+   # macOS
+   brew install awscli
+   
+   # Linux
+   sudo apt install awscli
+   
+   # Or use pip
+   pip install awscli
+   ```
+
+3. **AWS Batch Setup** - Create compute environment and job queues (one-time setup)
+   ```bash
+   # Create compute environment
+   aws batch create-compute-environment \
+     --compute-environment-name nf-scrnaseq-compute-env \
+     --type MANAGED \
+     --state ENABLED \
+     --compute-resources type=EC2,minvCpus=0,maxvCpus=256,desiredvCpus=0,instanceTypes=optimal,subnets=subnet-xxxxx,securityGroupIds=sg-xxxxx,instanceRole=arn:aws:iam::ACCOUNT:instance-profile/ecsInstanceProfile
+   
+   # Create job queue
+   aws batch create-job-queue \
+     --job-queue-name nf-scrnaseq-queue \
+     --state ENABLED \
+     --priority 1 \
+     --compute-environment-order order=1,computeEnvironment=nf-scrnaseq-compute-env
+   ```
+
+4. **Docker Image** - Push your container to Amazon ECR
+   ```bash
+   # Create ECR repository
+   aws ecr create-repository --repository-name nf-scrnaseq
+   
+   # Login to ECR
+   aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
+   
+   # Tag and push image
+   docker tag nf-scrnaseq:latest ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/nf-scrnaseq:latest
+   docker push ACCOUNT.dkr.ecr.us-east-1.amazonaws.com/nf-scrnaseq:latest
+   ```
+
+5. **S3 Bucket** - For storing results
+   ```bash
+   aws s3 mb s3://my-scrnaseq-bucket --region us-east-1
+   ```
+
+#### Configuration
+
+Edit `conf/aws.config`:
+```groovy
+aws {
+    region = 'us-east-1'                    // Your AWS region
+    batch {
+        computeEnvironment = 'nf-scrnaseq-compute-env'  // Your compute environment name
+        jobQueue = [
+            'default': 'nf-scrnaseq-queue',
+            'high-memory': 'nf-scrnaseq-highmem-queue'   // If you created this queue
+        ]
+    }
+}
+
+params {
+    outdir = 's3://my-scrnaseq-bucket/results'  // Your S3 bucket
+}
+```
+
+#### Running on AWS Batch
+
+```bash
+# Basic execution
+nextflow run main.nf \
+  --input s3://my-bucket/data.h5ad \
+  -profile aws
+
+# With custom parameters
+nextflow run main.nf \
+  --input s3://my-bucket/data.h5ad \
+  --max_pct_mt 10 \
+  --integration_method harmony \
+  -profile aws
+
+# View AWS Batch console for job monitoring
+# https://console.aws.amazon.com/batch/
+```
+
+#### Cost Considerations
+
+- **Compute Costs**: EC2 instances charged per hour (varies by instance type)
+- **Storage Costs**: S3 storage at $0.023/GB/month
+- **Data Transfer**: Free within AWS region, charged for cross-region
+- **Cost Optimization**:
+  - Use spot instances for 70% cost savings (risky - jobs can be interrupted)
+  - Run during off-peak hours
+  - Use smaller instance types for low-resource processes
+  - Monitor CloudWatch logs for optimization opportunities
+
+```bash
+# Enable spot instances in compute environment
+aws batch create-compute-environment \
+  --compute-resources spotIamFleetRole=arn:aws:iam::ACCOUNT:role/AmazonEC2SpotFleetRole
+```
+
+### Google Cloud Platform Execution
+
+GCP supports two execution models: Life Sciences API (recommended) and Batch. Both handle job orchestration and resource provisioning.
+
+#### Prerequisites
+
+1. **Google Cloud Account** - Active GCP account with billing enabled
+2. **gcloud CLI** - Installed and configured
+   ```bash
+   # Install gcloud
+   # macOS
+   brew install google-cloud-sdk
+   
+   # Linux
+   curl https://sdk.cloud.google.com | bash
+   exec -l $SHELL
+   ```
+
+3. **Authentication** - Set up credentials
+   ```bash
+   # Login and set default project
+   gcloud auth login
+   gcloud config set project MY_PROJECT_ID
+   
+   # Create service account for Nextflow
+   gcloud iam service-accounts create nf-scrnaseq \
+     --display-name="Service account for Nextflow"
+   
+   # Grant necessary roles
+   gcloud projects add-iam-policy-binding MY_PROJECT_ID \
+     --member=serviceAccount:nf-scrnaseq@MY_PROJECT_ID.iam.gserviceaccount.com \
+     --role=roles/lifesciences.workflowsWorker
+   
+   gcloud projects add-iam-policy-binding MY_PROJECT_ID \
+     --member=serviceAccount:nf-scrnaseq@MY_PROJECT_ID.iam.gserviceaccount.com \
+     --role=roles/storage.admin
+   
+   gcloud projects add-iam-policy-binding MY_PROJECT_ID \
+     --member=serviceAccount:nf-scrnaseq@MY_PROJECT_ID.iam.gserviceaccount.com \
+     --role=roles/compute.serviceAgent
+   
+   # Create and download key
+   gcloud iam service-accounts keys create key.json \
+     --iam-account=nf-scrnaseq@MY_PROJECT_ID.iam.gserviceaccount.com
+   
+   # Set environment variable
+   export GOOGLE_APPLICATION_CREDENTIALS=$PWD/key.json
+   ```
+
+4. **Enable APIs** - Required GCP APIs
+   ```bash
+   gcloud services enable lifesciences.googleapis.com
+   gcloud services enable compute.googleapis.com
+   gcloud services enable storage-api.googleapis.com
+   gcloud services enable cloudbuild.googleapis.com
+   ```
+
+5. **Container Image** - Push to Google Artifact Registry
+   ```bash
+   # Create artifact repository
+   gcloud artifacts repositories create nf-scrnaseq \
+     --repository-format=docker \
+     --location=us-central1
+   
+   # Configure Docker auth
+   gcloud auth configure-docker us-central1-docker.pkg.dev
+   
+   # Tag and push image
+   docker tag nf-scrnaseq:latest us-central1-docker.pkg.dev/MY_PROJECT_ID/nf-scrnaseq/nf-scrnaseq:latest
+   docker push us-central1-docker.pkg.dev/MY_PROJECT_ID/nf-scrnaseq/nf-scrnaseq:latest
+   ```
+
+6. **Cloud Storage Bucket** - For storing results
+   ```bash
+   gsutil mb gs://my-scrnaseq-bucket
+   ```
+
+#### Configuration
+
+Edit `conf/gcp.config`:
+```groovy
+google {
+    project = 'MY_PROJECT_ID'           // Your GCP project ID
+    location = 'us-central1'            // Compute region
+    
+    lifeSciences {
+        bootDiskSize = 100.GB           // Boot disk size
+        preemptible = false             // Set to true for cost savings
+    }
+}
+
+params {
+    outdir = 'gs://my-scrnaseq-bucket/results'  // Your GCS bucket
+}
+```
+
+#### Running on Google Cloud
+
+```bash
+# Using Life Sciences API (recommended)
+nextflow run main.nf \
+  --input gs://my-bucket/data.h5ad \
+  -profile gcp
+
+# Using Google Cloud Batch (newer)
+nextflow run main.nf \
+  --input gs://my-bucket/data.h5ad \
+  -profile gcp_batch
+
+# With custom parameters
+nextflow run main.nf \
+  --input gs://my-bucket/data.h5ad \
+  --integration_method harmony \
+  -profile gcp
+
+# Monitor in Google Cloud Console
+# https://console.cloud.google.com/life-sciences/workflows
+```
+
+#### Cost Considerations
+
+- **Compute Costs**: Variable by machine type and region
+  - n1-standard-4: ~$0.19/hour
+  - n1-standard-8: ~$0.38/hour
+- **Storage Costs**: GCS at $0.020/GB/month
+- **Preemptible Instances**: 70% discount but can be interrupted (good for non-critical steps)
+- **Cost Optimization**:
+  - Use preemptible instances for exploratory runs
+  - Choose appropriate machine types (don't over-provision)
+  - Use committed use discounts for production runs
+  - Archive results to Coldline storage for long-term retention
+
+```bash
+# Enable preemptible instances for cost savings
+# Edit conf/gcp.config:
+lifeSciences {
+    preemptible = true  // 70% cost reduction
+}
+```
+
+### HPC Scheduler Execution
+
+For high-performance computing clusters, use Slurm or PBS schedulers.
+
+#### Slurm HPC Execution
+
+Slurm is the most common HPC scheduler (used by XSEDE, NERSC, etc.).
+
+##### Prerequisites
+
+1. **HPC Account** - Active account on Slurm cluster
+2. **Singularity** - Container runtime on cluster
+   ```bash
+   # Check if available
+   module avail singularity
+   module load singularity
+   singularity --version
+   ```
+
+3. **Nextflow** - Install on login node
+   ```bash
+   # Option 1: Download binary
+   wget -qO- https://get.nextflow.io | bash
+   chmod +x nextflow
+   
+   # Option 2: Using conda
+   conda create -n nextflow -c bioconda nextflow
+   ```
+
+##### Configuration
+
+Edit `conf/slurm.config`:
+```groovy
+process {
+    executor = 'slurm'
+    queue = 'normal'  // Your default queue
+}
+
+slurm {
+    queueSize = 20              // Job queue size
+    submitRateLimit = '2 sec'   // Don't overwhelm scheduler
+}
+
+singularity {
+    enabled = true
+    cacheDir = '/scratch/$USER/singularity-cache'  // Use fast storage
+}
+
+params {
+    outdir = '/scratch/$USER/scrnaseq-results'  // Use local scratch
+}
+```
+
+##### Running on Slurm
+
+```bash
+# Basic execution
+nextflow run main.nf \
+  --input /path/to/data.h5ad \
+  -profile slurm
+
+# With resource constraints
+nextflow run main.nf \
+  --input /path/to/data.h5ad \
+  --max_cpus 8 \
+  --max_memory 32.GB \
+  -profile slurm
+
+# Submit as batch job (for long runs)
+cat > submit_nextflow.slurm << 'SLURM'
+#!/bin/bash
+#SBATCH --job-name=scrnaseq
+#SBATCH --time=168:00:00          # 7 days
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16GB
+#SBATCH --output=nextflow.log
+
+module load singularity
+module load nextflow
+
+nextflow run main.nf \
+  --input data.h5ad \
+  -profile slurm
+SLURM
+
+sbatch submit_nextflow.slurm
+```
+
+#### PBS/Torque HPC Execution
+
+PBS (Portable Batch System) or Torque is used on some HPC clusters.
+
+##### Prerequisites
+
+Similar to Slurm:
+1. HPC account on PBS cluster
+2. Singularity installed
+3. Nextflow installed
+
+##### Configuration
+
+Edit `conf/pbs.config`:
+```groovy
+process {
+    executor = 'pbs'
+    queue = 'standard'  // Your default queue
+}
+
+pbs {
+    queueSize = 20              // Job queue size
+    submitRateLimit = '2 sec'   // Don't overwhelm scheduler
+}
+
+singularity {
+    enabled = true
+    cacheDir = '/scratch/$USER/singularity-cache'
+}
+
+params {
+    outdir = '/scratch/$USER/scrnaseq-results'
+}
+```
+
+##### Running on PBS
+
+```bash
+# Basic execution
+nextflow run main.nf \
+  --input /path/to/data.h5ad \
+  -profile pbs
+
+# Submit as batch job
+cat > submit_nextflow.pbs << 'PBS'
+#!/bin/bash
+#PBS -N scrnaseq
+#PBS -l walltime=168:00:00
+#PBS -l nodes=1:ppn=4
+#PBS -l mem=16GB
+#PBS -o nextflow.log
+
+module load singularity
+module load nextflow
+
+nextflow run main.nf \
+  --input data.h5ad \
+  -profile pbs
+PBS
+
+qsub submit_nextflow.pbs
+```
+
+#### HPC Cost Considerations
+
+- **No Direct Costs** - Usually included in institutional allocation
+- **Allocation Limits** - CPU hours and storage quotas per user/project
+- **Optimization**:
+  - Use efficient resource requests (avoid over-provisioning)
+  - Run during low-load periods if possible
+  - Use job arrays for embarrassingly parallel tasks
+  - Clean up temporary files regularly
+
+### Platform Comparison
+
+| Feature | AWS Batch | GCP Life Sciences | Slurm HPC | PBS HPC |
+|---------|-----------|------------------|-----------|---------|
+| Setup Complexity | Medium | High | Low | Low |
+| Setup Time | ~30 min | ~30-60 min | 5-10 min* | 5-10 min* |
+| Container Support | Docker/Singularity | Docker/Singularity | Singularity | Singularity |
+| Cost (per hour)** | $0.19-0.95 | $0.19-0.95 | Varies | Varies |
+| Storage | S3 ($0.023/GB/mo) | GCS ($0.020/GB/mo) | Local | Local |
+| Best For | On-demand cloud | Multi-region cloud | Large datasets | Large datasets |
+| Scalability | Excellent | Excellent | Good | Good |
+| Data Transfer | Can be expensive | Can be expensive | Free (local) | Free (local) |
+
+*Assuming you already have cluster access
+
+**Cost varies by instance/machine type and region
+
+### General Cloud Best Practices
+
+1. **Use Profile Combinations**:
+   ```bash
+   # Combine cloud profile with container profile
+   nextflow run main.nf \
+     --input data.h5ad \
+     -profile gcp,docker
+   ```
+
+2. **Set Resource Limits**:
+   ```bash
+   nextflow run main.nf \
+     --input data.h5ad \
+     --max_cpus 8 \
+     --max_memory 32.GB \
+     --max_time 24.h \
+     -profile aws
+   ```
+
+3. **Monitor Costs**:
+   - Set up billing alerts in AWS/GCP
+   - Check logs regularly for failed jobs (retries add costs)
+   - Use preemptible/spot instances when possible
+
+4. **Data Management**:
+   - Upload data to cloud storage first (faster pipeline execution)
+   - Use `-resume` flag to restart from failed tasks
+   - Archive results to cheaper storage after analysis
+
+5. **Error Recovery**:
+   ```bash
+   # Resume a failed run from checkpoint
+   nextflow run main.nf \
+     --input s3://bucket/data.h5ad \
+     -profile aws \
+     -resume
+   ```
+
+### Troubleshooting Cloud Execution
+
+**AWS Batch Issues**:
+- "Job failed to submit": Check IAM permissions and compute environment configuration
+- "Container image not found": Verify ECR repository and image tag
+- "Insufficient capacity": Use different availability zones or instance types
+
+**GCP Issues**:
+- "API not enabled": Run `gcloud services enable lifesciences.googleapis.com`
+- "Access denied": Check service account permissions with `gcloud projects get-iam-policy`
+- "Image pull failed": Verify Artifact Registry repository and authentication
+
+**HPC Issues**:
+- "Singularity image not found": Check cache directory permissions and image path
+- "Job queued but not running": Check queue status with `squeue` (Slurm) or `qstat` (PBS)
+- "Memory limit exceeded": Increase `--max_memory` parameter
 
 ## QC Metrics
 
@@ -160,6 +1617,59 @@ The pipeline calculates and visualizes the following QC metrics:
 - **total_counts**: Total UMI counts per cell
 - **pct_counts_mt**: Percentage of mitochondrial gene counts
 - **pct_counts_ribo**: Percentage of ribosomal gene counts
+
+## R-based Clustering
+
+The pipeline supports optional R-based clustering methods via rpy2. These methods are disabled by default and require manual installation of R packages.
+
+### Seurat SNN Clustering
+
+Seurat uses a shared nearest neighbor (SNN) modularity optimization algorithm:
+
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_seurat_clustering true \
+  --seurat_resolution 0.8 \
+  -profile conda
+```
+
+**Requirements**:
+- rpy2 Python package
+- Seurat R package (`install.packages('Seurat')`)
+
+### Celda Clustering
+
+Celda provides Bayesian hierarchical modeling for clustering cells and genes:
+
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_celda true \
+  --celda_L 10 \
+  --celda_K 5 \
+  -profile conda
+```
+
+- `celda_L`: Number of cell modules (use 'auto' for automatic selection)
+- `celda_K`: Number of gene modules (use 'auto' for automatic selection)
+
+**Requirements**:
+- rpy2 Python package
+- celda R package (`BiocManager::install('celda')`)
+
+### Installing R-based Clustering Dependencies
+
+```bash
+# Install rpy2 in your conda environment
+pip install rpy2
+
+# In R:
+install.packages('Seurat')
+BiocManager::install('celda')
+```
+
+**Note**: R-based methods are slower than Python-based Leiden/Louvain clustering but may provide different biological insights.
 
 ## Doublet Detection and Decontamination
 
@@ -206,15 +1716,23 @@ The QC module generates comprehensive plots including:
 - Quality control and filtering
 - Doublet detection (Scrublet, scDblFinder)
 - Contamination estimation (DecontX, ambient RNA)
-- QC visualization
-
-**Coming Soon**:
-- Normalization and scaling
+- Normalization and log transformation
 - Highly variable gene selection
 - Dimensionality reduction (PCA, UMAP, t-SNE)
-- Clustering
-- Cell type annotation
-- Differential expression analysis
+- Clustering (Leiden, Louvain, Seurat SNN, Celda)
+- Differential expression analysis (marker gene identification)
+- Cell type annotation (CellTypist pre-trained models, marker-based scoring)
+- Gene set enrichment analysis (Hallmark pathways, GO/KEGG via Enrichr)
+- Batch correction (Harmony, ComBat, BBKNN with automatic effect detection)
+- Cell cycle scoring and optional regression (Tirosh et al. gene sets)
+- Trajectory analysis (PAGA, diffusion pseudotime, force-directed layouts)
+- Cell-cell communication (ligand-receptor interaction scoring)
+- Comprehensive visualization at each step
+
+**Coming Soon**:
+- RNA velocity analysis
+- Spatial transcriptomics support
+- Differential abundance testing
 
 ## Requirements
 
@@ -229,13 +1747,21 @@ The pipeline uses the following key packages:
 - matplotlib >= 3.7
 - seaborn >= 0.12
 - scrublet >= 0.2.3
+- celltypist >= 1.6.0 (for pre-trained cell type annotation)
+- gseapy >= 1.0.0 (for gene set enrichment analysis)
+- harmonypy >= 0.0.9 (for Harmony batch correction)
+- bbknn >= 1.6.0 (for batch-balanced k-nearest neighbors)
+- cellphonedb >= 5.0.0 (for cell-cell communication analysis)
+- scanorama >= 1.7.0 (for multi-sample integration)
+- scvi-tools (optional, for scVI integration method)
 
-**R packages (conda profile only)**:
+**R packages (manual installation required)**:
 - r-base >= 4.2
 - bioconductor-singlecellexperiment
 - bioconductor-scdblfinder
-- bioconductor-celda (DecontX)
+- bioconductor-celda (DecontX and Celda clustering)
 - r-soupx
+- Seurat (for Seurat SNN clustering)
 - rpy2 >= 3.5 (Python-R interface)
 
 ### Container/Environment Options
