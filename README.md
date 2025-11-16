@@ -13,6 +13,7 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Feature Selection**: Highly variable gene identification
 - **Dimensionality Reduction**: PCA, UMAP, and t-SNE embeddings
 - **Clustering**: Leiden, Louvain, Seurat SNN, and Celda clustering algorithms
+- **Differential Expression**: Marker gene identification with multiple statistical methods
 - **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
@@ -149,6 +150,17 @@ The pipeline supports the following input formats:
 
 **Note**: R-based clustering methods (Seurat, Celda) require manual installation of rpy2 and the corresponding R packages. See the [R-based Clustering](#r-based-clustering) section for setup instructions.
 
+### Differential Expression
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_diff_expression` | true | Run differential expression analysis |
+| `--de_method` | wilcoxon | Statistical method: 'wilcoxon', 't-test', 'logreg' |
+| `--de_n_genes` | 25 | Number of top marker genes per cluster |
+| `--de_min_fold_change` | 1.5 | Minimum fold change threshold |
+| `--de_min_in_group_fraction` | 0.25 | Minimum fraction of cells expressing marker in cluster |
+| `--de_max_out_group_fraction` | 0.5 | Maximum fraction of cells expressing marker outside cluster |
+
 ### Output
 
 | Parameter | Default | Description |
@@ -185,11 +197,17 @@ results/
 │   ├── reduced_dims.h5ad         # Data with embeddings (PCA, UMAP, t-SNE)
 │   ├── dim_reduction_plots.pdf   # PCA variance, UMAP, t-SNE plots
 │   └── dim_reduction_summary.txt # Dimensionality reduction summary
-└── clustering/
-    ├── clustered.h5ad            # Data with cluster assignments
-    ├── cluster_assignments.csv   # Cluster labels per cell
-    ├── clustering_plots.pdf      # Cluster visualizations on UMAP/PCA
-    └── clustering_summary.txt    # Clustering summary and statistics
+├── clustering/
+│   ├── clustered.h5ad            # Data with cluster assignments
+│   ├── cluster_assignments.csv   # Cluster labels per cell
+│   ├── clustering_plots.pdf      # Cluster visualizations on UMAP/PCA
+│   └── clustering_summary.txt    # Clustering summary and statistics
+└── diff_expression/               # (if enabled)
+    ├── de_results.h5ad           # Data with DE results stored
+    ├── marker_genes.csv          # All marker gene statistics
+    ├── top_markers_per_cluster.csv # Top N markers per cluster
+    ├── de_plots.pdf              # Dot plots, heatmaps, violin plots
+    └── de_summary.txt            # DE analysis summary
 ```
 
 ## Profiles
@@ -329,11 +347,11 @@ The QC module generates comprehensive plots including:
 - Highly variable gene selection
 - Dimensionality reduction (PCA, UMAP, t-SNE)
 - Clustering (Leiden, Louvain, Seurat SNN, Celda)
+- Differential expression analysis (marker gene identification)
 - Comprehensive visualization at each step
 
 **Coming Soon**:
 - Cell type annotation
-- Differential expression analysis
 - Trajectory analysis
 
 ## Requirements

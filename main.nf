@@ -63,6 +63,12 @@ def helpMessage() {
       --run_celda             Run Celda clustering (R-based) (default: false)
       --seurat_resolution     Seurat resolution parameter (default: 0.8)
 
+    Differential expression:
+      --run_diff_expression   Run differential expression analysis (default: true)
+      --de_method             Method: 'wilcoxon', 't-test', 'logreg' (default: wilcoxon)
+      --de_n_genes            Number of top genes per cluster (default: 25)
+      --de_min_fold_change    Minimum fold change (default: 1.5)
+
     Output options:
       --outdir             Output directory (default: ./results)
       --publish_dir_mode   Publishing mode: 'copy', 'symlink', 'move' (default: copy)
@@ -133,6 +139,12 @@ Clustering:
   Run Celda    : ${params.run_celda}
   Seurat res   : ${params.seurat_resolution}
 -------------------------------------------------------
+Diff Expression:
+  Enabled      : ${params.run_diff_expression}
+  Method       : ${params.de_method}
+  N genes      : ${params.de_n_genes}
+  Min FC       : ${params.de_min_fold_change}
+-------------------------------------------------------
 """.stripIndent()
 
 // Import modules
@@ -143,6 +155,7 @@ include { NORMALIZE } from './modules/local/normalize.nf'
 include { HIGHLY_VARIABLE_GENES } from './modules/local/highly_variable_genes.nf'
 include { REDUCE_DIMS } from './modules/local/reduce_dims.nf'
 include { CLUSTERING } from './modules/local/clustering.nf'
+include { DIFF_EXPRESSION } from './modules/local/diff_expression.nf'
 
 /*
 ========================================================================================
@@ -229,6 +242,19 @@ workflow {
         params.celda_L,
         params.celda_K
     )
+
+    // Differential expression analysis (optional)
+    if (params.run_diff_expression) {
+        DIFF_EXPRESSION(
+            CLUSTERING.out.adata,
+            params.cluster_key,
+            params.de_method,
+            params.de_n_genes,
+            params.de_min_fold_change,
+            params.de_min_in_group_fraction,
+            params.de_max_out_group_fraction
+        )
+    }
 }
 
 /*
