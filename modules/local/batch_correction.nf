@@ -15,8 +15,8 @@ process BATCH_CORRECTION {
     path "batch_correction_plots.pdf", emit: plots
     path "batch_correction_summary.txt", emit: summary
 
-    script:
-    """
+    shell:
+    '''
     #!/usr/bin/env python3
 
     import scanpy as sc
@@ -540,5 +540,5 @@ process BATCH_CORRECTION {
         f.write("\\n".join(summary_lines))
 
     print(f"Batch correction complete. Correction applied: {apply_correction}")
-    """
+    '''
 }
