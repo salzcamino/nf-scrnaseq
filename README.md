@@ -12,7 +12,7 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Normalization**: Library size normalization and log transformation
 - **Feature Selection**: Highly variable gene identification
 - **Dimensionality Reduction**: PCA, UMAP, and t-SNE embeddings
-- **Clustering**: Leiden and Louvain community detection algorithms
+- **Clustering**: Leiden, Louvain, Seurat SNN, and Celda clustering algorithms
 - **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
@@ -141,6 +141,13 @@ The pipeline supports the following input formats:
 | `--leiden_resolution` | 1.0 | Leiden resolution (higher = more clusters) |
 | `--louvain_resolution` | 1.0 | Louvain resolution (higher = more clusters) |
 | `--cluster_key` | auto | Primary cluster key ('auto', 'leiden', 'louvain') |
+| `--run_seurat_clustering` | false | Run Seurat SNN clustering (R-based, requires rpy2 + Seurat) |
+| `--run_celda` | false | Run Celda clustering (R-based, requires rpy2 + celda) |
+| `--seurat_resolution` | 0.8 | Seurat clustering resolution |
+| `--celda_L` | auto | Number of cell modules for Celda (auto or integer) |
+| `--celda_K` | auto | Number of gene modules for Celda (auto or integer) |
+
+**Note**: R-based clustering methods (Seurat, Celda) require manual installation of rpy2 and the corresponding R packages. See the [R-based Clustering](#r-based-clustering) section for setup instructions.
 
 ### Output
 
@@ -220,6 +227,59 @@ The pipeline calculates and visualizes the following QC metrics:
 - **pct_counts_mt**: Percentage of mitochondrial gene counts
 - **pct_counts_ribo**: Percentage of ribosomal gene counts
 
+## R-based Clustering
+
+The pipeline supports optional R-based clustering methods via rpy2. These methods are disabled by default and require manual installation of R packages.
+
+### Seurat SNN Clustering
+
+Seurat uses a shared nearest neighbor (SNN) modularity optimization algorithm:
+
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_seurat_clustering true \
+  --seurat_resolution 0.8 \
+  -profile conda
+```
+
+**Requirements**:
+- rpy2 Python package
+- Seurat R package (`install.packages('Seurat')`)
+
+### Celda Clustering
+
+Celda provides Bayesian hierarchical modeling for clustering cells and genes:
+
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_celda true \
+  --celda_L 10 \
+  --celda_K 5 \
+  -profile conda
+```
+
+- `celda_L`: Number of cell modules (use 'auto' for automatic selection)
+- `celda_K`: Number of gene modules (use 'auto' for automatic selection)
+
+**Requirements**:
+- rpy2 Python package
+- celda R package (`BiocManager::install('celda')`)
+
+### Installing R-based Clustering Dependencies
+
+```bash
+# Install rpy2 in your conda environment
+pip install rpy2
+
+# In R:
+install.packages('Seurat')
+BiocManager::install('celda')
+```
+
+**Note**: R-based methods are slower than Python-based Leiden/Louvain clustering but may provide different biological insights.
+
 ## Doublet Detection and Decontamination
 
 The pipeline includes comprehensive doublet detection and contamination estimation:
@@ -268,7 +328,7 @@ The QC module generates comprehensive plots including:
 - Normalization and log transformation
 - Highly variable gene selection
 - Dimensionality reduction (PCA, UMAP, t-SNE)
-- Clustering (Leiden, Louvain)
+- Clustering (Leiden, Louvain, Seurat SNN, Celda)
 - Comprehensive visualization at each step
 
 **Coming Soon**:
@@ -290,12 +350,13 @@ The pipeline uses the following key packages:
 - seaborn >= 0.12
 - scrublet >= 0.2.3
 
-**R packages (conda profile only)**:
+**R packages (manual installation required)**:
 - r-base >= 4.2
 - bioconductor-singlecellexperiment
 - bioconductor-scdblfinder
-- bioconductor-celda (DecontX)
+- bioconductor-celda (DecontX and Celda clustering)
 - r-soupx
+- Seurat (for Seurat SNN clustering)
 - rpy2 >= 3.5 (Python-R interface)
 
 ### Container/Environment Options

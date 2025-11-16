@@ -59,6 +59,9 @@ def helpMessage() {
       --run_louvain           Run Louvain clustering (default: false)
       --leiden_resolution     Leiden resolution parameter (default: 1.0)
       --louvain_resolution    Louvain resolution parameter (default: 1.0)
+      --run_seurat_clustering Run Seurat SNN clustering (R-based) (default: false)
+      --run_celda             Run Celda clustering (R-based) (default: false)
+      --seurat_resolution     Seurat resolution parameter (default: 0.8)
 
     Output options:
       --outdir             Output directory (default: ./results)
@@ -126,6 +129,9 @@ Clustering:
   Run Louvain  : ${params.run_louvain}
   Leiden res   : ${params.leiden_resolution}
   Louvain res  : ${params.louvain_resolution}
+  Run Seurat   : ${params.run_seurat_clustering}
+  Run Celda    : ${params.run_celda}
+  Seurat res   : ${params.seurat_resolution}
 -------------------------------------------------------
 """.stripIndent()
 
@@ -216,7 +222,12 @@ workflow {
         params.run_louvain,
         params.leiden_resolution,
         params.louvain_resolution,
-        params.cluster_key
+        params.cluster_key,
+        params.run_seurat_clustering,
+        params.run_celda,
+        params.seurat_resolution,
+        params.celda_L,
+        params.celda_K
     )
 }
 
