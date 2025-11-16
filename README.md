@@ -401,20 +401,22 @@ nextflow run main.nf \
 | `--communication_n_permutations` | 100 | Permutations for significance testing |
 
 **Features:**
-- Scores ligand-receptor interactions between cell types
-- Uses curated database of human L-R pairs (chemokines, cytokines, growth factors, immune checkpoints)
+- **CellPhoneDB integration** - Uses CellPhoneDB's curated database with 1000+ L-R pairs
+- Fallback to built-in curated database if CellPhoneDB not installed
 - Permutation testing for statistical significance
 - Network visualization of cell-cell interactions
 - Identifies active sender and receiver cell types
 
-**Ligand-Receptor Categories:**
-- Chemokines (CCL/CXCL - CCR/CXCR)
-- Cytokines (IL, IFN, TNF, TGF)
-- Growth factors (EGF, VEGF, FGF, PDGF)
-- Immune checkpoints (PD-L1/PD-1, CD80/CD28, CTLA4)
-- MHC interactions (HLA-CD8/CD4)
-- Adhesion molecules (ICAM, VCAM)
-- Notch and Wnt signaling
+**Methods:**
+- **CellPhoneDB** (default if installed) - Established tool with comprehensive L-R database
+- **Built-in database** (fallback) - 45+ curated pairs including:
+  - Chemokines (CCL/CXCL - CCR/CXCR)
+  - Cytokines (IL, IFN, TNF, TGF)
+  - Growth factors (EGF, VEGF, FGF, PDGF)
+  - Immune checkpoints (PD-L1/PD-1, CD80/CD28, CTLA4)
+  - MHC interactions (HLA-CD8/CD4)
+  - Adhesion molecules (ICAM, VCAM)
+  - Notch and Wnt signaling
 
 **Example:**
 ```bash
@@ -684,6 +686,7 @@ The pipeline uses the following key packages:
 - gseapy >= 1.0.0 (for gene set enrichment analysis)
 - harmonypy >= 0.0.9 (for Harmony batch correction)
 - bbknn >= 1.6.0 (for batch-balanced k-nearest neighbors)
+- cellphonedb >= 5.0.0 (for cell-cell communication analysis)
 
 **R packages (manual installation required)**:
 - r-base >= 4.2

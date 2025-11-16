@@ -114,243 +114,394 @@ process CELL_COMMUNICATION {
     summary_lines.append("")
 
     # ========================================
-    # LIGAND-RECEPTOR DATABASE
+    # TRY CELLPHONEDB FIRST
     # ========================================
-    summary_lines.append("Ligand-Receptor Database")
-    summary_lines.append("-" * 50)
+    cpdb_success = False
+    try:
+        from cellphonedb.src.core.methods import cpdb_statistical_analysis_method
+        import os
+        import tempfile
 
-    # Curated human ligand-receptor pairs (subset of CellPhoneDB/CellChat)
-    lr_pairs = {
-        # Chemokines and receptors
-        'CCL2_CCR2': ('CCL2', 'CCR2'),
-        'CCL3_CCR1': ('CCL3', 'CCR1'),
-        'CCL4_CCR5': ('CCL4', 'CCR5'),
-        'CCL5_CCR5': ('CCL5', 'CCR5'),
-        'CXCL8_CXCR1': ('CXCL8', 'CXCR1'),
-        'CXCL8_CXCR2': ('CXCL8', 'CXCR2'),
-        'CXCL10_CXCR3': ('CXCL10', 'CXCR3'),
-        'CXCL12_CXCR4': ('CXCL12', 'CXCR4'),
+        summary_lines.append("CellPhoneDB Analysis")
+        summary_lines.append("-" * 50)
+        summary_lines.append("Using CellPhoneDB for L-R interaction analysis")
 
-        # Cytokines
-        'IL1B_IL1R1': ('IL1B', 'IL1R1'),
-        'IL2_IL2RA': ('IL2', 'IL2RA'),
-        'IL4_IL4R': ('IL4', 'IL4R'),
-        'IL6_IL6R': ('IL6', 'IL6R'),
-        'IL10_IL10RA': ('IL10', 'IL10RA'),
-        'IFNG_IFNGR1': ('IFNG', 'IFNGR1'),
-        'TNF_TNFRSF1A': ('TNF', 'TNFRSF1A'),
-        'TGFB1_TGFBR1': ('TGFB1', 'TGFBR1'),
+        # Prepare data for CellPhoneDB
+        # CellPhoneDB expects normalized counts and metadata
 
-        # Growth factors
-        'EGF_EGFR': ('EGF', 'EGFR'),
-        'VEGFA_FLT1': ('VEGFA', 'FLT1'),
-        'VEGFA_KDR': ('VEGFA', 'KDR'),
-        'FGF2_FGFR1': ('FGF2', 'FGFR1'),
-        'PDGFB_PDGFRB': ('PDGFB', 'PDGFRB'),
-        'HGF_MET': ('HGF', 'MET'),
+        # Create temporary directory for CellPhoneDB outputs
+        cpdb_dir = tempfile.mkdtemp()
 
-        # Immune checkpoints
-        'CD274_PDCD1': ('CD274', 'PDCD1'),  # PD-L1/PD-1
-        'CD80_CD28': ('CD80', 'CD28'),
-        'CD80_CTLA4': ('CD80', 'CTLA4'),
-        'CD86_CD28': ('CD86', 'CD28'),
-        'CD86_CTLA4': ('CD86', 'CTLA4'),
-        'TNFSF9_TNFRSF9': ('TNFSF9', 'TNFRSF9'),  # 4-1BBL/4-1BB
-
-        # MHC interactions
-        'HLA-A_CD8A': ('HLA-A', 'CD8A'),
-        'HLA-B_CD8A': ('HLA-B', 'CD8A'),
-        'HLA-C_CD8A': ('HLA-C', 'CD8A'),
-        'HLA-DRA_CD4': ('HLA-DRA', 'CD4'),
-        'HLA-DRB1_CD4': ('HLA-DRB1', 'CD4'),
-
-        # Adhesion molecules
-        'ICAM1_ITGAL': ('ICAM1', 'ITGAL'),  # ICAM1/LFA-1
-        'VCAM1_ITGA4': ('VCAM1', 'ITGA4'),
-        'SELP_SELPLG': ('SELP', 'SELPLG'),
-        'CDH1_CDH1': ('CDH1', 'CDH1'),  # E-cadherin homotypic
-
-        # Notch signaling
-        'JAG1_NOTCH1': ('JAG1', 'NOTCH1'),
-        'JAG1_NOTCH2': ('JAG1', 'NOTCH2'),
-        'DLL1_NOTCH1': ('DLL1', 'NOTCH1'),
-        'DLL4_NOTCH1': ('DLL4', 'NOTCH1'),
-
-        # Wnt signaling
-        'WNT5A_FZD5': ('WNT5A', 'FZD5'),
-        'WNT3A_FZD1': ('WNT3A', 'FZD1'),
-
-        # Other important pairs
-        'CD40LG_CD40': ('CD40LG', 'CD40'),
-        'FASLG_FAS': ('FASLG', 'FAS'),
-        'TNFSF10_TNFRSF10A': ('TNFSF10', 'TNFRSF10A'),  # TRAIL
-        'SPP1_CD44': ('SPP1', 'CD44'),
-        'SPP1_ITGAV': ('SPP1', 'ITGAV'),
-        'LGALS9_HAVCR2': ('LGALS9', 'HAVCR2'),  # Galectin-9/TIM-3
-    }
-
-    # Filter to pairs where both genes are in the dataset
-    available_pairs = {}
-    for pair_name, (ligand, receptor) in lr_pairs.items():
-        if ligand in adata.var_names and receptor in adata.var_names:
-            available_pairs[pair_name] = (ligand, receptor)
-
-    summary_lines.append(f"Total L-R pairs in database: {len(lr_pairs)}")
-    summary_lines.append(f"Pairs with both genes present: {len(available_pairs)}")
-
-    if len(available_pairs) == 0:
-        summary_lines.append("\\nWARNING: No ligand-receptor pairs found in dataset")
-        summary_lines.append("This may indicate non-human data or limited gene coverage")
-
-        adata.write('communication_results.h5ad')
-        pd.DataFrame().to_csv('ligand_receptor_pairs.csv', index=False)
-        pd.DataFrame().to_csv('communication_matrix.csv', index=False)
-
-        with PdfPages('communication_plots.pdf') as pdf:
-            fig, ax = plt.subplots()
-            ax.text(0.5, 0.5, 'No L-R pairs found in dataset', ha='center', va='center')
-            ax.axis('off')
-            pdf.savefig(fig)
-            plt.close()
-
-        with open('communication_summary.txt', 'w') as f:
-            f.write("\\n".join(summary_lines))
-
-        import sys
-        sys.exit(0)
-
-    summary_lines.append("\\nAvailable pairs:")
-    for pair_name in list(available_pairs.keys())[:10]:
-        ligand, receptor = available_pairs[pair_name]
-        summary_lines.append(f"  {pair_name}: {ligand} -> {receptor}")
-    if len(available_pairs) > 10:
-        summary_lines.append(f"  ... and {len(available_pairs) - 10} more")
-
-    summary_lines.append("")
-
-    # ========================================
-    # CALCULATE COMMUNICATION SCORES
-    # ========================================
-    summary_lines.append("Communication Score Calculation")
-    summary_lines.append("-" * 50)
-
-    # Get expression matrix (use raw if available, otherwise use .X)
-    if adata.raw is not None:
-        expr_matrix = adata.raw.to_adata().to_df()
-    else:
+        # Prepare counts matrix (cells x genes)
         if hasattr(adata.X, 'toarray'):
-            expr_matrix = pd.DataFrame(
-                adata.X.toarray(),
-                index=adata.obs_names,
-                columns=adata.var_names
+            counts_df = pd.DataFrame(
+                adata.X.toarray().T,
+                index=adata.var_names,
+                columns=adata.obs_names
             )
         else:
-            expr_matrix = pd.DataFrame(
-                adata.X,
-                index=adata.obs_names,
-                columns=adata.var_names
+            counts_df = pd.DataFrame(
+                adata.X.T,
+                index=adata.var_names,
+                columns=adata.obs_names
             )
 
-    # Calculate mean expression per cell type
-    mean_expr = expr_matrix.groupby(cell_types).mean()
-    mean_expr = mean_expr.loc[valid_types]
+        # Prepare metadata
+        meta_df = pd.DataFrame({
+            'Cell': adata.obs_names,
+            'cell_type': adata.obs[cell_type_key_param].astype(str).values
+        })
+        meta_df = meta_df.set_index('Cell')
 
-    # Calculate communication scores for each L-R pair between all cell type pairs
-    interaction_results = []
-    communication_matrix = pd.DataFrame(
-        0.0,
-        index=valid_types,
-        columns=valid_types
-    )
+        # Filter to valid cell types
+        meta_df = meta_df[meta_df['cell_type'].isin(valid_types)]
+        counts_df = counts_df[meta_df.index]
 
-    for pair_name, (ligand, receptor) in available_pairs.items():
-        ligand_expr = mean_expr[ligand]
-        receptor_expr = mean_expr[receptor]
+        # Save to temporary files
+        counts_path = os.path.join(cpdb_dir, 'counts.txt')
+        meta_path = os.path.join(cpdb_dir, 'meta.txt')
 
-        for sender in valid_types:
-            for receiver in valid_types:
-                # Communication score = ligand_expr(sender) * receptor_expr(receiver)
-                score = float(ligand_expr[sender] * receptor_expr[receiver])
+        counts_df.to_csv(counts_path, sep='\\t')
+        meta_df.to_csv(meta_path, sep='\\t')
 
-                if score > 0:
-                    # Permutation test for significance
-                    if n_perms_param > 0:
-                        perm_scores = []
-                        sender_cells = expr_matrix.loc[cell_types == sender]
-                        receiver_cells = expr_matrix.loc[cell_types == receiver]
+        summary_lines.append(f"Cells for analysis: {len(meta_df)}")
+        summary_lines.append(f"Genes: {len(counts_df)}")
 
-                        for _ in range(n_perms_param):
-                            # Shuffle cell type labels
-                            perm_ligand = np.mean(np.random.choice(
-                                expr_matrix[ligand].values,
-                                size=len(sender_cells)
-                            ))
-                            perm_receptor = np.mean(np.random.choice(
-                                expr_matrix[receptor].values,
-                                size=len(receiver_cells)
-                            ))
-                            perm_scores.append(perm_ligand * perm_receptor)
+        # Run CellPhoneDB statistical analysis
+        summary_lines.append(f"Running statistical analysis with {n_perms_param} permutations...")
 
-                        p_value = (np.sum(np.array(perm_scores) >= score) + 1) / (n_perms_param + 1)
-                    else:
-                        p_value = np.nan
+        deconvoluted, means, pvalues, significant_means = cpdb_statistical_analysis_method.call(
+            cpdb_file_path=None,  # Use default database
+            meta_file_path=meta_path,
+            counts_file_path=counts_path,
+            counts_data='hgnc_symbol',
+            output_path=cpdb_dir,
+            iterations=n_perms_param,
+            threshold=0.1,
+            threads=4,
+            debug_seed=-1,
+            result_precision=3,
+            pvalue=0.05,
+            subsampling=False,
+            subsampling_log=False,
+            subsampling_num_pc=100,
+            subsampling_num_cells=None
+        )
 
-                    interaction_results.append({
-                        'pair_name': pair_name,
-                        'ligand': ligand,
-                        'receptor': receptor,
-                        'sender': sender,
-                        'receiver': receiver,
-                        'ligand_expr': float(ligand_expr[sender]),
-                        'receptor_expr': float(receptor_expr[receiver]),
-                        'communication_score': score,
-                        'p_value': p_value
-                    })
+        summary_lines.append("CellPhoneDB analysis completed successfully!")
 
-                    # Add to communication matrix (sum of all interactions)
-                    communication_matrix.loc[sender, receiver] += score
+        # Process CellPhoneDB results
+        # means contains mean expression of L-R pairs
+        # pvalues contains p-values from permutation test
+        # significant_means contains means where p < threshold
 
-    # Create results DataFrame
-    interactions_df = pd.DataFrame(interaction_results)
+        # Convert to our standard format
+        interaction_results = []
 
-    if len(interactions_df) > 0:
-        # Sort by score
-        interactions_df = interactions_df.sort_values('communication_score', ascending=False)
+        # Get interaction columns (cell type pairs)
+        interaction_cols = [col for col in means.columns if '|' in col]
 
-        # Add significance flag
-        if n_perms_param > 0:
+        for idx, row in means.iterrows():
+            pair_id = row['id_cp_interaction'] if 'id_cp_interaction' in row else str(idx)
+            ligand = row.get('gene_a', row.get('partner_a', 'Unknown'))
+            receptor = row.get('gene_b', row.get('partner_b', 'Unknown'))
+
+            for col in interaction_cols:
+                sender, receiver = col.split('|')
+                if sender in valid_types and receiver in valid_types:
+                    mean_val = row[col]
+                    if pd.notna(mean_val) and mean_val > 0:
+                        # Get p-value
+                        p_val = pvalues.loc[idx, col] if col in pvalues.columns else np.nan
+
+                        interaction_results.append({
+                            'pair_name': f"{ligand}_{receptor}",
+                            'ligand': str(ligand),
+                            'receptor': str(receptor),
+                            'sender': sender,
+                            'receiver': receiver,
+                            'ligand_expr': float(mean_val),
+                            'receptor_expr': float(mean_val),
+                            'communication_score': float(mean_val),
+                            'p_value': float(p_val) if pd.notna(p_val) else np.nan,
+                            'cpdb_id': pair_id
+                        })
+
+        interactions_df = pd.DataFrame(interaction_results)
+
+        if len(interactions_df) > 0:
+            interactions_df = interactions_df.sort_values('communication_score', ascending=False)
             interactions_df['significant'] = interactions_df['p_value'] < 0.05
 
+            # Build communication matrix
+            communication_matrix = pd.DataFrame(
+                0.0,
+                index=valid_types,
+                columns=valid_types
+            )
+
+            for _, row in interactions_df.iterrows():
+                communication_matrix.loc[row['sender'], row['receiver']] += row['communication_score']
+
             n_sig = interactions_df['significant'].sum()
-            summary_lines.append(f"Total interactions scored: {len(interactions_df)}")
+            summary_lines.append(f"\\nTotal interactions found: {len(interactions_df)}")
             summary_lines.append(f"Significant interactions (p<0.05): {n_sig}")
+            summary_lines.append(f"Unique L-R pairs: {interactions_df['pair_name'].nunique()}")
+
+        cpdb_success = True
+
+        # Cleanup temp directory
+        import shutil
+        shutil.rmtree(cpdb_dir, ignore_errors=True)
+
+    except ImportError:
+        summary_lines.append("CellPhoneDB not installed - using built-in L-R database")
+        summary_lines.append("To use CellPhoneDB: pip install cellphonedb")
+        summary_lines.append("")
+    except Exception as e:
+        summary_lines.append(f"CellPhoneDB analysis failed: {str(e)}")
+        summary_lines.append("Falling back to built-in L-R database")
+        summary_lines.append("")
+
+    # ========================================
+    # FALLBACK: BUILT-IN LIGAND-RECEPTOR DATABASE
+    # ========================================
+    if not cpdb_success:
+        summary_lines.append("Ligand-Receptor Database (Built-in)")
+        summary_lines.append("-" * 50)
+
+        # Curated human ligand-receptor pairs (subset of CellPhoneDB/CellChat)
+        lr_pairs = {
+            # Chemokines and receptors
+            'CCL2_CCR2': ('CCL2', 'CCR2'),
+            'CCL3_CCR1': ('CCL3', 'CCR1'),
+            'CCL4_CCR5': ('CCL4', 'CCR5'),
+            'CCL5_CCR5': ('CCL5', 'CCR5'),
+            'CXCL8_CXCR1': ('CXCL8', 'CXCR1'),
+            'CXCL8_CXCR2': ('CXCL8', 'CXCR2'),
+            'CXCL10_CXCR3': ('CXCL10', 'CXCR3'),
+            'CXCL12_CXCR4': ('CXCL12', 'CXCR4'),
+
+            # Cytokines
+            'IL1B_IL1R1': ('IL1B', 'IL1R1'),
+            'IL2_IL2RA': ('IL2', 'IL2RA'),
+            'IL4_IL4R': ('IL4', 'IL4R'),
+            'IL6_IL6R': ('IL6', 'IL6R'),
+            'IL10_IL10RA': ('IL10', 'IL10RA'),
+            'IFNG_IFNGR1': ('IFNG', 'IFNGR1'),
+            'TNF_TNFRSF1A': ('TNF', 'TNFRSF1A'),
+            'TGFB1_TGFBR1': ('TGFB1', 'TGFBR1'),
+
+            # Growth factors
+            'EGF_EGFR': ('EGF', 'EGFR'),
+            'VEGFA_FLT1': ('VEGFA', 'FLT1'),
+            'VEGFA_KDR': ('VEGFA', 'KDR'),
+            'FGF2_FGFR1': ('FGF2', 'FGFR1'),
+            'PDGFB_PDGFRB': ('PDGFB', 'PDGFRB'),
+            'HGF_MET': ('HGF', 'MET'),
+
+            # Immune checkpoints
+            'CD274_PDCD1': ('CD274', 'PDCD1'),  # PD-L1/PD-1
+            'CD80_CD28': ('CD80', 'CD28'),
+            'CD80_CTLA4': ('CD80', 'CTLA4'),
+            'CD86_CD28': ('CD86', 'CD28'),
+            'CD86_CTLA4': ('CD86', 'CTLA4'),
+            'TNFSF9_TNFRSF9': ('TNFSF9', 'TNFRSF9'),  # 4-1BBL/4-1BB
+
+            # MHC interactions
+            'HLA-A_CD8A': ('HLA-A', 'CD8A'),
+            'HLA-B_CD8A': ('HLA-B', 'CD8A'),
+            'HLA-C_CD8A': ('HLA-C', 'CD8A'),
+            'HLA-DRA_CD4': ('HLA-DRA', 'CD4'),
+            'HLA-DRB1_CD4': ('HLA-DRB1', 'CD4'),
+
+            # Adhesion molecules
+            'ICAM1_ITGAL': ('ICAM1', 'ITGAL'),  # ICAM1/LFA-1
+            'VCAM1_ITGA4': ('VCAM1', 'ITGA4'),
+            'SELP_SELPLG': ('SELP', 'SELPLG'),
+            'CDH1_CDH1': ('CDH1', 'CDH1'),  # E-cadherin homotypic
+
+            # Notch signaling
+            'JAG1_NOTCH1': ('JAG1', 'NOTCH1'),
+            'JAG1_NOTCH2': ('JAG1', 'NOTCH2'),
+            'DLL1_NOTCH1': ('DLL1', 'NOTCH1'),
+            'DLL4_NOTCH1': ('DLL4', 'NOTCH1'),
+
+            # Wnt signaling
+            'WNT5A_FZD5': ('WNT5A', 'FZD5'),
+            'WNT3A_FZD1': ('WNT3A', 'FZD1'),
+
+            # Other important pairs
+            'CD40LG_CD40': ('CD40LG', 'CD40'),
+            'FASLG_FAS': ('FASLG', 'FAS'),
+            'TNFSF10_TNFRSF10A': ('TNFSF10', 'TNFRSF10A'),  # TRAIL
+            'SPP1_CD44': ('SPP1', 'CD44'),
+            'SPP1_ITGAV': ('SPP1', 'ITGAV'),
+            'LGALS9_HAVCR2': ('LGALS9', 'HAVCR2'),  # Galectin-9/TIM-3
+        }
+
+        # Filter to pairs where both genes are in the dataset
+        available_pairs = {}
+        for pair_name, (ligand, receptor) in lr_pairs.items():
+            if ligand in adata.var_names and receptor in adata.var_names:
+                available_pairs[pair_name] = (ligand, receptor)
+
+        summary_lines.append(f"Total L-R pairs in database: {len(lr_pairs)}")
+        summary_lines.append(f"Pairs with both genes present: {len(available_pairs)}")
+
+        if len(available_pairs) == 0:
+            summary_lines.append("\\nWARNING: No ligand-receptor pairs found in dataset")
+            summary_lines.append("This may indicate non-human data or limited gene coverage")
+
+            adata.write('communication_results.h5ad')
+            pd.DataFrame().to_csv('ligand_receptor_pairs.csv', index=False)
+            pd.DataFrame().to_csv('communication_matrix.csv', index=False)
+
+            with PdfPages('communication_plots.pdf') as pdf:
+                fig, ax = plt.subplots()
+                ax.text(0.5, 0.5, 'No L-R pairs found in dataset', ha='center', va='center')
+                ax.axis('off')
+                pdf.savefig(fig)
+                plt.close()
+
+            with open('communication_summary.txt', 'w') as f:
+                f.write("\\n".join(summary_lines))
+
+            import sys
+            sys.exit(0)
+
+        summary_lines.append("\\nAvailable pairs:")
+        for pair_name in list(available_pairs.keys())[:10]:
+            ligand, receptor = available_pairs[pair_name]
+            summary_lines.append(f"  {pair_name}: {ligand} -> {receptor}")
+        if len(available_pairs) > 10:
+            summary_lines.append(f"  ... and {len(available_pairs) - 10} more")
+
+        summary_lines.append("")
+
+        # ========================================
+        # CALCULATE COMMUNICATION SCORES
+        # ========================================
+        summary_lines.append("Communication Score Calculation")
+        summary_lines.append("-" * 50)
+
+        # Get expression matrix (use raw if available, otherwise use .X)
+        if adata.raw is not None:
+            expr_matrix = adata.raw.to_adata().to_df()
         else:
-            interactions_df['significant'] = True
-            summary_lines.append(f"Total interactions scored: {len(interactions_df)}")
-            summary_lines.append("Significance testing: disabled (n_permutations=0)")
+            if hasattr(adata.X, 'toarray'):
+                expr_matrix = pd.DataFrame(
+                    adata.X.toarray(),
+                    index=adata.obs_names,
+                    columns=adata.var_names
+                )
+            else:
+                expr_matrix = pd.DataFrame(
+                    adata.X,
+                    index=adata.obs_names,
+                    columns=adata.var_names
+                )
 
-        # Top interactions
-        summary_lines.append("\\nTop 10 interactions by score:")
-        for idx, row in interactions_df.head(10).iterrows():
-            sig_str = "*" if row.get('significant', True) else ""
-            summary_lines.append(f"  {row['sender']} -> {row['receiver']}: "
-                                f"{row['ligand']}-{row['receptor']} "
-                                f"(score={row['communication_score']:.4f}){sig_str}")
+        # Calculate mean expression per cell type
+        mean_expr = expr_matrix.groupby(cell_types).mean()
+        mean_expr = mean_expr.loc[valid_types]
 
-        # Most active senders
-        sender_activity = interactions_df.groupby('sender')['communication_score'].sum().sort_values(ascending=False)
-        summary_lines.append("\\nMost active sender cell types:")
-        for sender, total_score in sender_activity.head(5).items():
-            summary_lines.append(f"  {sender}: {total_score:.4f}")
+        # Calculate communication scores for each L-R pair between all cell type pairs
+        interaction_results = []
+        communication_matrix = pd.DataFrame(
+            0.0,
+            index=valid_types,
+            columns=valid_types
+        )
 
-        # Most active receivers
-        receiver_activity = interactions_df.groupby('receiver')['communication_score'].sum().sort_values(ascending=False)
-        summary_lines.append("\\nMost active receiver cell types:")
-        for receiver, total_score in receiver_activity.head(5).items():
-            summary_lines.append(f"  {receiver}: {total_score:.4f}")
+        for pair_name, (ligand, receptor) in available_pairs.items():
+            ligand_expr = mean_expr[ligand]
+            receptor_expr = mean_expr[receptor]
 
-    else:
-        summary_lines.append("No interactions found")
+            for sender in valid_types:
+                for receiver in valid_types:
+                    # Communication score = ligand_expr(sender) * receptor_expr(receiver)
+                    score = float(ligand_expr[sender] * receptor_expr[receiver])
+
+                    if score > 0:
+                        # Permutation test for significance
+                        if n_perms_param > 0:
+                            perm_scores = []
+                            sender_cells = expr_matrix.loc[cell_types == sender]
+                            receiver_cells = expr_matrix.loc[cell_types == receiver]
+
+                            for _ in range(n_perms_param):
+                                # Shuffle cell type labels
+                                perm_ligand = np.mean(np.random.choice(
+                                    expr_matrix[ligand].values,
+                                    size=len(sender_cells)
+                                ))
+                                perm_receptor = np.mean(np.random.choice(
+                                    expr_matrix[receptor].values,
+                                    size=len(receiver_cells)
+                                ))
+                                perm_scores.append(perm_ligand * perm_receptor)
+
+                            p_value = (np.sum(np.array(perm_scores) >= score) + 1) / (n_perms_param + 1)
+                        else:
+                            p_value = np.nan
+
+                        interaction_results.append({
+                            'pair_name': pair_name,
+                            'ligand': ligand,
+                            'receptor': receptor,
+                            'sender': sender,
+                            'receiver': receiver,
+                            'ligand_expr': float(ligand_expr[sender]),
+                            'receptor_expr': float(receptor_expr[receiver]),
+                            'communication_score': score,
+                            'p_value': p_value
+                        })
+
+                        # Add to communication matrix (sum of all interactions)
+                        communication_matrix.loc[sender, receiver] += score
+
+        # Create results DataFrame
+        interactions_df = pd.DataFrame(interaction_results)
+
+        if len(interactions_df) > 0:
+            # Sort by score
+            interactions_df = interactions_df.sort_values('communication_score', ascending=False)
+
+            # Add significance flag
+            if n_perms_param > 0:
+                interactions_df['significant'] = interactions_df['p_value'] < 0.05
+
+                n_sig = interactions_df['significant'].sum()
+                summary_lines.append(f"Total interactions scored: {len(interactions_df)}")
+                summary_lines.append(f"Significant interactions (p<0.05): {n_sig}")
+            else:
+                interactions_df['significant'] = True
+                summary_lines.append(f"Total interactions scored: {len(interactions_df)}")
+                summary_lines.append("Significance testing: disabled (n_permutations=0)")
+
+            # Top interactions
+            summary_lines.append("\\nTop 10 interactions by score:")
+            for idx, row in interactions_df.head(10).iterrows():
+                sig_str = "*" if row.get('significant', True) else ""
+                summary_lines.append(f"  {row['sender']} -> {row['receiver']}: "
+                                    f"{row['ligand']}-{row['receptor']} "
+                                    f"(score={row['communication_score']:.4f}){sig_str}")
+
+            # Most active senders
+            sender_activity = interactions_df.groupby('sender')['communication_score'].sum().sort_values(ascending=False)
+            summary_lines.append("\\nMost active sender cell types:")
+            for sender, total_score in sender_activity.head(5).items():
+                summary_lines.append(f"  {sender}: {total_score:.4f}")
+
+            # Most active receivers
+            receiver_activity = interactions_df.groupby('receiver')['communication_score'].sum().sort_values(ascending=False)
+            summary_lines.append("\\nMost active receiver cell types:")
+            for receiver, total_score in receiver_activity.head(5).items():
+                summary_lines.append(f"  {receiver}: {total_score:.4f}")
+
+        else:
+            summary_lines.append("No interactions found")
 
     summary_lines.append("")
 
@@ -359,11 +510,13 @@ process CELL_COMMUNICATION {
     communication_matrix.to_csv('communication_matrix.csv')
 
     # Store in AnnData
+    n_pairs = len(interactions_df['pair_name'].unique()) if len(interactions_df) > 0 else 0
     adata.uns['cell_communication'] = {
         'cell_type_key': cell_type_key_param,
-        'n_pairs_tested': len(available_pairs),
+        'n_pairs_tested': n_pairs,
         'n_interactions': len(interactions_df),
-        'valid_cell_types': valid_types
+        'valid_cell_types': valid_types,
+        'method': 'cellphonedb' if cpdb_success else 'built-in'
     }
 
     # ========================================
