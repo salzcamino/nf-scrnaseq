@@ -15,6 +15,7 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Clustering**: Leiden, Louvain, Seurat SNN, and Celda clustering algorithms
 - **Differential Expression**: Marker gene identification with multiple statistical methods
 - **Cell Type Annotation**: Automated cell type prediction based on marker genes
+- **Gene Set Enrichment**: Pathway scoring and functional enrichment analysis
 - **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
@@ -209,6 +210,61 @@ B_cells,CD19
 B_cells,MS4A1
 ```
 
+### Gene Set Enrichment
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_gsea` | true | Run gene set enrichment analysis |
+| `--gsea_gene_sets` | default | Gene set database: 'default', 'GO', 'KEGG', or custom file path |
+| `--gsea_n_top_genes` | 100 | Number of top marker genes to use for enrichment |
+
+**Available Gene Sets:**
+
+- `default` - Hallmark gene sets (MSigDB) plus cell type signatures
+- `GO` - Gene Ontology Biological Process terms (via Enrichr)
+- `KEGG` - KEGG pathway database (via Enrichr)
+- Custom file path - Your own gene set file (JSON or GMT format)
+
+**Example using specific gene sets:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_gsea true \
+  --gsea_gene_sets GO \
+  --gsea_n_top_genes 150 \
+  -profile conda
+```
+
+**Built-in Hallmark Pathways:**
+
+The default gene sets include MSigDB Hallmark pathways:
+- HALLMARK_INFLAMMATORY_RESPONSE
+- HALLMARK_INTERFERON_GAMMA_RESPONSE
+- HALLMARK_INTERFERON_ALPHA_RESPONSE
+- HALLMARK_APOPTOSIS
+- HALLMARK_OXIDATIVE_PHOSPHORYLATION
+- HALLMARK_GLYCOLYSIS
+- HALLMARK_P53_PATHWAY
+- HALLMARK_DNA_REPAIR
+- HALLMARK_HYPOXIA
+- HALLMARK_MYC_TARGETS
+- HALLMARK_E2F_TARGETS
+
+Plus cell type-specific signatures (T_cell, B_cell, NK_cell, Monocyte, DC).
+
+**Custom Gene Set Format (JSON):**
+```json
+{
+  "Pathway_Name": ["GENE1", "GENE2", "GENE3"],
+  "Another_Pathway": ["GENE4", "GENE5", "GENE6"]
+}
+```
+
+**Outputs:**
+- Cell-level pathway scores (can be visualized on UMAP)
+- Enrichr API results for each cluster's marker genes (if gseapy installed)
+- Enrichment plots showing pathway activities across clusters
+
 ### Output
 
 | Parameter | Default | Description |
@@ -256,12 +312,18 @@ results/
 │   ├── top_markers_per_cluster.csv # Top N markers per cluster
 │   ├── de_plots.pdf              # Dot plots, heatmaps, violin plots
 │   └── de_summary.txt            # DE analysis summary
-└── annotation/                    # (if enabled)
-    ├── annotated.h5ad            # Data with cell type annotations
-    ├── cell_type_scores.csv      # Cell type scores for each cell
-    ├── cluster_annotations.csv   # Cluster-level type assignments
-    ├── annotation_plots.pdf      # Cell type distribution and heatmaps
-    └── annotation_summary.txt    # Annotation summary
+├── annotation/                    # (if enabled)
+│   ├── annotated.h5ad            # Data with cell type annotations
+│   ├── cell_type_scores.csv      # Cell type scores for each cell
+│   ├── cluster_annotations.csv   # Cluster-level type assignments
+│   ├── annotation_plots.pdf      # Cell type distribution and heatmaps
+│   └── annotation_summary.txt    # Annotation summary
+└── gsea/                          # (if enabled)
+    ├── gsea_results.h5ad         # Data with pathway scores added
+    ├── enrichment_results.csv    # Enrichr API results per cluster
+    ├── pathway_scores.csv        # Pathway scores for each cell
+    ├── gsea_plots.pdf            # Pathway enrichment heatmaps
+    └── gsea_summary.txt          # GSEA analysis summary
 ```
 
 ## Profiles
@@ -403,7 +465,8 @@ The QC module generates comprehensive plots including:
 - Dimensionality reduction (PCA, UMAP, t-SNE)
 - Clustering (Leiden, Louvain, Seurat SNN, Celda)
 - Differential expression analysis (marker gene identification)
-- Cell type annotation (marker-based scoring)
+- Cell type annotation (CellTypist pre-trained models, marker-based scoring)
+- Gene set enrichment analysis (Hallmark pathways, GO/KEGG via Enrichr)
 - Comprehensive visualization at each step
 
 **Coming Soon**:
@@ -424,6 +487,7 @@ The pipeline uses the following key packages:
 - seaborn >= 0.12
 - scrublet >= 0.2.3
 - celltypist >= 1.6.0 (for pre-trained cell type annotation)
+- gseapy >= 1.0.0 (for gene set enrichment analysis)
 
 **R packages (manual installation required)**:
 - r-base >= 4.2

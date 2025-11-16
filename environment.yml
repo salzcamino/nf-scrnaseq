@@ -37,6 +37,7 @@ dependencies:
   # Cell type annotation
   - pip:
     - celltypist>=1.6.0
+    - gseapy>=1.0.0
 
   # Note: R-based tools (scDblFinder, DecontX, SoupX) require manual installation
   # If you need these tools, install them separately:

@@ -75,6 +75,11 @@ def helpMessage() {
       --celltypist_model      CellTypist model name (default: Immune_All_Low.pkl)
       --marker_file           Marker gene file for marker_scoring (default: default)
 
+    Gene set enrichment:
+      --run_gsea              Run gene set enrichment analysis (default: true)
+      --gsea_gene_sets        Gene set database: 'default', 'GO', 'KEGG' (default: default)
+      --gsea_n_top_genes      Number of top genes for enrichment (default: 100)
+
     Output options:
       --outdir             Output directory (default: ./results)
       --publish_dir_mode   Publishing mode: 'copy', 'symlink', 'move' (default: copy)
@@ -156,6 +161,11 @@ Cell Type Annotation:
   Method       : ${params.annotation_method}
   Model        : ${params.celltypist_model}
 -------------------------------------------------------
+Gene Set Enrichment:
+  Enabled      : ${params.run_gsea}
+  Gene sets    : ${params.gsea_gene_sets}
+  Top genes    : ${params.gsea_n_top_genes}
+-------------------------------------------------------
 """.stripIndent()
 
 // Import modules
@@ -168,6 +178,7 @@ include { REDUCE_DIMS } from './modules/local/reduce_dims.nf'
 include { CLUSTERING } from './modules/local/clustering.nf'
 include { DIFF_EXPRESSION } from './modules/local/diff_expression.nf'
 include { CELL_TYPE_ANNOTATION } from './modules/local/cell_type_annotation.nf'
+include { GENE_SET_ENRICHMENT } from './modules/local/gsea.nf'
 
 /*
 ========================================================================================
@@ -274,6 +285,26 @@ workflow {
                 params.annotation_method,
                 params.celltypist_model,
                 params.marker_file,
+                params.cluster_key
+            )
+
+            // Gene set enrichment analysis (optional, requires DE results)
+            if (params.run_gsea) {
+                GENE_SET_ENRICHMENT(
+                    CELL_TYPE_ANNOTATION.out.adata,
+                    DIFF_EXPRESSION.out.markers,
+                    params.gsea_gene_sets,
+                    params.gsea_n_top_genes,
+                    params.cluster_key
+                )
+            }
+        } else if (params.run_gsea) {
+            // Run GSEA without annotation
+            GENE_SET_ENRICHMENT(
+                DIFF_EXPRESSION.out.adata,
+                DIFF_EXPRESSION.out.markers,
+                params.gsea_gene_sets,
+                params.gsea_n_top_genes,
                 params.cluster_key
             )
         }
