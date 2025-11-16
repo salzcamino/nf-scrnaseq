@@ -17,6 +17,8 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Cell Type Annotation**: Automated cell type prediction based on marker genes
 - **Gene Set Enrichment**: Pathway scoring and functional enrichment analysis
 - **Batch Correction**: Automatic detection and correction of batch effects
+- **Cell Cycle Analysis**: Phase scoring (G1/S/G2M) with optional regression
+- **Trajectory Analysis**: Pseudotime inference using PAGA and diffusion maps
 - **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
@@ -313,6 +315,81 @@ nextflow run main.nf \
 - Batch composition per cluster plots
 - Summary of whether correction was applied and why
 
+### Cell Cycle Scoring
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_cell_cycle` | true | Run cell cycle phase scoring |
+| `--regress_cell_cycle` | false | Regress out cell cycle effects from expression |
+
+**Features:**
+- Scores cells for S and G2M phases using Tirosh et al. (2016) gene sets
+- Assigns cells to G1, S, or G2M phase based on scores
+- Optional regression to remove cell cycle effects from downstream analysis
+- Works with human gene symbols
+
+**Example with cell cycle regression:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_cell_cycle true \
+  --regress_cell_cycle true \
+  -profile conda
+```
+
+**Important Notes:**
+- Runs after normalization but before HVG selection
+- If regress_cell_cycle=true, expression matrix is modified
+- Best for datasets where cell cycle is a confounding factor
+- Phase assignment based on relative S and G2M scores
+
+**Outputs:**
+- Cell cycle phase assignments (G1, S, G2M)
+- S and G2M phase scores for each cell
+- Phase distribution plots and UMAP visualizations
+- Phase composition per cluster
+
+### Trajectory Analysis
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_trajectory` | true | Run trajectory/pseudotime analysis |
+| `--trajectory_root` | auto | Root cell: 'auto', cluster ID, or cell barcode |
+| `--n_diffusion_comps` | 15 | Number of diffusion components |
+
+**Methods:**
+- **PAGA** (Partition-based Graph Abstraction) - Infers connectivity between clusters
+- **Diffusion Pseudotime** - Orders cells along developmental trajectory
+- **Force-directed Layout** - PAGA-initialized graph visualization
+
+**Root Cell Selection:**
+- `auto` - Automatically selects based on diffusion component extremes or stem markers
+- Cluster ID (e.g., `0`) - Selects root from specified cluster
+- Cell barcode - Uses specific cell as root
+
+**Example with specific root:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --run_trajectory true \
+  --trajectory_root 0 \
+  --n_diffusion_comps 20 \
+  -profile conda
+```
+
+**Use Cases:**
+- Developmental trajectories (stem cells → differentiated)
+- Cell state transitions
+- Lineage relationships between clusters
+- Identifying branch points
+
+**Outputs:**
+- Diffusion pseudotime values for each cell
+- PAGA connectivity graph between clusters
+- Diffusion map coordinates
+- Trajectory visualizations on UMAP and force-directed layouts
+- Pseudotime distribution per cluster
+
 ### Output
 
 | Parameter | Default | Description |
@@ -340,6 +417,11 @@ results/
 ├── normalize/
 │   ├── normalized.h5ad           # Normalized data
 │   └── normalization_summary.txt # Normalization parameters
+├── cell_cycle/                    # (if enabled)
+│   ├── cell_cycle_scored.h5ad   # Data with cell cycle scores
+│   ├── cell_cycle_scores.csv    # Phase scores and assignments
+│   ├── cell_cycle_plots.pdf     # Phase distribution visualizations
+│   └── cell_cycle_summary.txt   # Cell cycle analysis summary
 ├── hvg/
 │   ├── hvg_selected.h5ad         # Data with HVG annotations
 │   ├── hvg_genes.csv             # HVG gene list with statistics
@@ -371,12 +453,17 @@ results/
 │   ├── cluster_annotations.csv   # Cluster-level type assignments
 │   ├── annotation_plots.pdf      # Cell type distribution and heatmaps
 │   └── annotation_summary.txt    # Annotation summary
-└── gsea/                          # (if enabled)
-    ├── gsea_results.h5ad         # Data with pathway scores added
-    ├── enrichment_results.csv    # Enrichr API results per cluster
-    ├── pathway_scores.csv        # Pathway scores for each cell
-    ├── gsea_plots.pdf            # Pathway enrichment heatmaps
-    └── gsea_summary.txt          # GSEA analysis summary
+├── gsea/                          # (if enabled)
+│   ├── gsea_results.h5ad         # Data with pathway scores added
+│   ├── enrichment_results.csv    # Enrichr API results per cluster
+│   ├── pathway_scores.csv        # Pathway scores for each cell
+│   ├── gsea_plots.pdf            # Pathway enrichment heatmaps
+│   └── gsea_summary.txt          # GSEA analysis summary
+└── trajectory/                    # (if enabled)
+    ├── trajectory_results.h5ad  # Data with pseudotime and PAGA
+    ├── pseudotime.csv           # Pseudotime values per cell
+    ├── trajectory_plots.pdf     # PAGA, diffusion maps, pseudotime plots
+    └── trajectory_summary.txt   # Trajectory analysis summary
 ```
 
 ## Profiles
@@ -521,10 +608,12 @@ The QC module generates comprehensive plots including:
 - Cell type annotation (CellTypist pre-trained models, marker-based scoring)
 - Gene set enrichment analysis (Hallmark pathways, GO/KEGG via Enrichr)
 - Batch correction (Harmony, ComBat, BBKNN with automatic effect detection)
+- Cell cycle scoring and optional regression (Tirosh et al. gene sets)
+- Trajectory analysis (PAGA, diffusion pseudotime, force-directed layouts)
 - Comprehensive visualization at each step
 
 **Coming Soon**:
-- Trajectory/pseudotime analysis
+- RNA velocity analysis
 - Integration of multiple samples
 
 ## Requirements

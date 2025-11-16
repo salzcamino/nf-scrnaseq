@@ -86,6 +86,15 @@ def helpMessage() {
       --batch_correction_method  Method: 'harmony', 'combat', 'bbknn' (default: harmony)
       --batch_effect_threshold   Threshold for applying correction (default: 0.3)
 
+    Cell cycle scoring:
+      --run_cell_cycle        Run cell cycle phase scoring (default: true)
+      --regress_cell_cycle    Regress out cell cycle effects (default: false)
+
+    Trajectory analysis:
+      --run_trajectory        Run trajectory/pseudotime analysis (default: true)
+      --trajectory_root       Root cell: 'auto', cluster ID, or barcode (default: auto)
+      --n_diffusion_comps     Number of diffusion components (default: 15)
+
     Output options:
       --outdir             Output directory (default: ./results)
       --publish_dir_mode   Publishing mode: 'copy', 'symlink', 'move' (default: copy)
@@ -178,6 +187,15 @@ Batch Correction:
   Method       : ${params.batch_correction_method}
   Threshold    : ${params.batch_effect_threshold}
 -------------------------------------------------------
+Cell Cycle:
+  Enabled      : ${params.run_cell_cycle}
+  Regress      : ${params.regress_cell_cycle}
+-------------------------------------------------------
+Trajectory:
+  Enabled      : ${params.run_trajectory}
+  Root cell    : ${params.trajectory_root}
+  N DCs        : ${params.n_diffusion_comps}
+-------------------------------------------------------
 """.stripIndent()
 
 // Import modules
@@ -192,6 +210,8 @@ include { DIFF_EXPRESSION } from './modules/local/diff_expression.nf'
 include { CELL_TYPE_ANNOTATION } from './modules/local/cell_type_annotation.nf'
 include { GENE_SET_ENRICHMENT } from './modules/local/gsea.nf'
 include { BATCH_CORRECTION } from './modules/local/batch_correction.nf'
+include { CELL_CYCLE_SCORING } from './modules/local/cell_cycle.nf'
+include { TRAJECTORY_ANALYSIS } from './modules/local/trajectory.nf'
 
 /*
 ========================================================================================
@@ -243,9 +263,20 @@ workflow {
         params.log_transform
     )
 
+    // Cell cycle scoring (optional, runs on normalized data)
+    if (params.run_cell_cycle) {
+        CELL_CYCLE_SCORING(
+            NORMALIZE.out.adata,
+            params.regress_cell_cycle
+        )
+        ch_for_hvg = CELL_CYCLE_SCORING.out.adata
+    } else {
+        ch_for_hvg = NORMALIZE.out.adata
+    }
+
     // Highly variable gene selection
     HIGHLY_VARIABLE_GENES(
-        NORMALIZE.out.adata,
+        ch_for_hvg,
         params.n_top_genes,
         params.hvg_min_mean,
         params.hvg_max_mean,
@@ -341,6 +372,16 @@ workflow {
             params.annotation_method,
             params.celltypist_model,
             params.marker_file,
+            params.cluster_key
+        )
+    }
+
+    // Trajectory analysis (optional, runs after clustering)
+    if (params.run_trajectory) {
+        TRAJECTORY_ANALYSIS(
+            CLUSTERING.out.adata,
+            params.trajectory_root,
+            params.n_diffusion_comps,
             params.cluster_key
         )
     }
