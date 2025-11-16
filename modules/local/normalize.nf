@@ -46,7 +46,7 @@ print(f"Normalizing to target sum: {target_sum_desc}")
 sc.pp.normalize_total(adata, target_sum=target_sum_val)
 
 # Calculate median counts after normalization
-median_counts = np.median(adata.X.sum(axis=1))
+median_counts = float(np.median(np.asarray(adata.X.sum(axis=1)).flatten()))
 
 # Log transform
 if do_log:
