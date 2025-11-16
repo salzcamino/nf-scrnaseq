@@ -80,6 +80,12 @@ def helpMessage() {
       --gsea_gene_sets        Gene set database: 'default', 'GO', 'KEGG' (default: default)
       --gsea_n_top_genes      Number of top genes for enrichment (default: 100)
 
+    Batch correction:
+      --run_batch_correction  Run batch effect detection/correction (default: true)
+      --batch_key             Column containing batch info (default: batch)
+      --batch_correction_method  Method: 'harmony', 'combat', 'bbknn' (default: harmony)
+      --batch_effect_threshold   Threshold for applying correction (default: 0.3)
+
     Output options:
       --outdir             Output directory (default: ./results)
       --publish_dir_mode   Publishing mode: 'copy', 'symlink', 'move' (default: copy)
@@ -166,6 +172,12 @@ Gene Set Enrichment:
   Gene sets    : ${params.gsea_gene_sets}
   Top genes    : ${params.gsea_n_top_genes}
 -------------------------------------------------------
+Batch Correction:
+  Enabled      : ${params.run_batch_correction}
+  Batch key    : ${params.batch_key}
+  Method       : ${params.batch_correction_method}
+  Threshold    : ${params.batch_effect_threshold}
+-------------------------------------------------------
 """.stripIndent()
 
 // Import modules
@@ -179,6 +191,7 @@ include { CLUSTERING } from './modules/local/clustering.nf'
 include { DIFF_EXPRESSION } from './modules/local/diff_expression.nf'
 include { CELL_TYPE_ANNOTATION } from './modules/local/cell_type_annotation.nf'
 include { GENE_SET_ENRICHMENT } from './modules/local/gsea.nf'
+include { BATCH_CORRECTION } from './modules/local/batch_correction.nf'
 
 /*
 ========================================================================================
@@ -251,9 +264,22 @@ workflow {
         params.tsne_perplexity
     )
 
+    // Batch correction (optional, runs after dim reduction)
+    if (params.run_batch_correction) {
+        BATCH_CORRECTION(
+            REDUCE_DIMS.out.adata,
+            params.batch_key,
+            params.batch_correction_method,
+            params.batch_effect_threshold
+        )
+        ch_for_clustering = BATCH_CORRECTION.out.adata
+    } else {
+        ch_for_clustering = REDUCE_DIMS.out.adata
+    }
+
     // Clustering
     CLUSTERING(
-        REDUCE_DIMS.out.adata,
+        ch_for_clustering,
         params.run_leiden,
         params.run_louvain,
         params.leiden_resolution,

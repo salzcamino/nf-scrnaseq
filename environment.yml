@@ -38,6 +38,8 @@ dependencies:
   - pip:
     - celltypist>=1.6.0
     - gseapy>=1.0.0
+    - harmonypy>=0.0.9
+    - bbknn>=1.6.0
 
   # Note: R-based tools (scDblFinder, DecontX, SoupX) require manual installation
   # If you need these tools, install them separately:

@@ -16,6 +16,7 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Differential Expression**: Marker gene identification with multiple statistical methods
 - **Cell Type Annotation**: Automated cell type prediction based on marker genes
 - **Gene Set Enrichment**: Pathway scoring and functional enrichment analysis
+- **Batch Correction**: Automatic detection and correction of batch effects
 - **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
@@ -265,6 +266,53 @@ Plus cell type-specific signatures (T_cell, B_cell, NK_cell, Monocyte, DC).
 - Enrichr API results for each cluster's marker genes (if gseapy installed)
 - Enrichment plots showing pathway activities across clusters
 
+### Batch Correction
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--run_batch_correction` | true | Run batch effect detection and correction |
+| `--batch_key` | batch | Column in obs containing batch information |
+| `--batch_correction_method` | harmony | Method: 'harmony', 'combat', 'bbknn', 'scanorama' |
+| `--batch_effect_threshold` | 0.3 | Threshold for applying correction (0-1 scale) |
+
+**Automatic Batch Effect Detection:**
+
+The pipeline automatically assesses batch effects using multiple metrics:
+- **PCA variance explained by batch** - R² of batch as predictor of PC coordinates
+- **Batch silhouette score** - How well cells cluster by batch in PCA space
+- **kBET-like deviation** - Whether local neighborhoods maintain global batch proportions
+
+These metrics are combined into a single score (0-1). Correction is only applied if the score exceeds the threshold.
+
+**Available Correction Methods:**
+
+- `harmony` (default) - Fast, embedding-based correction via Harmony algorithm
+- `combat` - ComBat batch adjustment on expression matrix
+- `bbknn` - Batch-balanced k-nearest neighbors graph
+- `scanorama` - Panoramic stitching for batch integration
+
+**Example with batch correction:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --batch_key sample_id \
+  --batch_correction_method harmony \
+  --batch_effect_threshold 0.25 \
+  -profile conda
+```
+
+**Important Notes:**
+- Batch correction runs after dimensionality reduction but before clustering
+- If no batch key is found in the data, correction is skipped automatically
+- If only one batch is present, correction is skipped
+- Post-correction metrics show the effectiveness of the correction
+
+**Outputs:**
+- Batch effect assessment metrics (before and after correction)
+- UMAP visualizations colored by batch (before/after)
+- Batch composition per cluster plots
+- Summary of whether correction was applied and why
+
 ### Output
 
 | Parameter | Default | Description |
@@ -301,6 +349,11 @@ results/
 │   ├── reduced_dims.h5ad         # Data with embeddings (PCA, UMAP, t-SNE)
 │   ├── dim_reduction_plots.pdf   # PCA variance, UMAP, t-SNE plots
 │   └── dim_reduction_summary.txt # Dimensionality reduction summary
+├── batch_correction/              # (if enabled)
+│   ├── batch_corrected.h5ad     # Data with batch correction applied
+│   ├── batch_assessment.csv     # Batch effect metrics
+│   ├── batch_correction_plots.pdf # UMAP before/after, metrics
+│   └── batch_correction_summary.txt # Correction decision and results
 ├── clustering/
 │   ├── clustered.h5ad            # Data with cluster assignments
 │   ├── cluster_assignments.csv   # Cluster labels per cell
@@ -467,6 +520,7 @@ The QC module generates comprehensive plots including:
 - Differential expression analysis (marker gene identification)
 - Cell type annotation (CellTypist pre-trained models, marker-based scoring)
 - Gene set enrichment analysis (Hallmark pathways, GO/KEGG via Enrichr)
+- Batch correction (Harmony, ComBat, BBKNN with automatic effect detection)
 - Comprehensive visualization at each step
 
 **Coming Soon**:
@@ -488,6 +542,8 @@ The pipeline uses the following key packages:
 - scrublet >= 0.2.3
 - celltypist >= 1.6.0 (for pre-trained cell type annotation)
 - gseapy >= 1.0.0 (for gene set enrichment analysis)
+- harmonypy >= 0.0.9 (for Harmony batch correction)
+- bbknn >= 1.6.0 (for batch-balanced k-nearest neighbors)
 
 **R packages (manual installation required)**:
 - r-base >= 4.2
