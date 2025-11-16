@@ -22,6 +22,7 @@ This pipeline performs quality control and analysis of single-cell RNA-sequencin
 - **Trajectory Analysis**: Pseudotime inference using PAGA and diffusion maps
 - **Cell-Cell Communication**: Ligand-receptor interaction analysis between cell types
 - **HTML Report Generation**: Self-contained interactive reports with embedded visualizations
+- **Data Export**: Multi-format export for interoperability (Seurat, Loom, CellxGene, CSV, 10X MTX)
 - **Visualization**: Comprehensive plots and reports at each step
 
 ## Quick Start
@@ -514,6 +515,106 @@ nextflow run main.nf \
 |-----------|---------|-------------|
 | `--generate_report` | true | Generate comprehensive HTML report |
 | `--report_title` | nf-scrnaseq Analysis Report | Report title |
+
+### Data Export
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--export_seurat` | true | Export Seurat-compatible H5AD (convertible to RDS) |
+| `--export_loom` | true | Export Loom format for web-based viewing |
+| `--export_cellxgene` | true | Export CellxGene-ready H5AD with metadata |
+| `--export_csv` | true | Export expression matrix and metadata as CSV |
+| `--export_mtx` | true | Export 10X Market Matrix format |
+
+**Export Formats:**
+
+1. **Seurat Format** - Seurat-compatible H5AD file that can be:
+   - Loaded directly into R with: `library(SeuratDisk); obj <- LoadH5Seurat('data_seurat_compatible.h5ad')`
+   - Converted to RDS format with R (see export logs for instructions)
+
+2. **Loom Format** - Interactive format for web-based visualization
+   - View with Loom viewer at http://loom.linnarssonlab.org/
+   - Preserves all cell and gene metadata
+   - Optimized for large datasets
+
+3. **CellxGene Format** - H5AD with proper metadata structure
+   - Compatible with cellxgene for interactive exploration
+   - Includes cell type annotations and embeddings
+   - Can be hosted on CellxGene census
+
+4. **CSV Files** - Plain text exports
+   - Expression matrix (compressed as .csv.gz)
+   - Cell metadata with annotations
+   - Gene metadata with statistics
+   - All embeddings (UMAP, PCA, etc.)
+   - Easy to load in any programming environment
+
+5. **10X MTX Format** - Market matrix format
+   - Compatible with Seurat: `Read10X(data.dir = 'mtx/')`
+   - Compatible with Scanpy: `sc.read_mtx('matrix.mtx')`
+   - Includes barcodes.tsv and features.tsv
+   - Widely supported across tools
+
+**Export Output Structure:**
+
+```
+results/data_export/
+├── export_summary.txt              # Summary of all exports
+├── export_manifest.json            # Machine-readable manifest
+├── logs/
+│   └── export_log.txt              # Detailed export log
+├── seurat/
+│   └── data_seurat_compatible.h5ad # Seurat-loadable file
+├── loom/
+│   └── data.loom                   # Loom format file
+├── cellxgene/
+│   └── data_cellxgene.h5ad         # CellxGene-ready file
+├── csv/
+│   ├── expression_matrix.csv.gz    # Compressed expression
+│   ├── cell_metadata.csv           # Cell annotations
+│   ├── gene_metadata.csv           # Gene information
+│   └── X_*.csv                     # Embeddings
+└── mtx/
+    ├── matrix.mtx                  # Market matrix
+    ├── features.tsv                # Gene metadata
+    └── barcodes.tsv                # Cell barcodes
+```
+
+**Usage Examples:**
+
+Load in Python (Scanpy):
+```python
+import pandas as pd
+import scanpy as sc
+
+# From CSV
+counts = pd.read_csv('results/data_export/csv/expression_matrix.csv.gz', index_col=0)
+metadata = pd.read_csv('results/data_export/csv/cell_metadata.csv', index_col=0)
+
+# From Loom
+adata = sc.read_loom('results/data_export/loom/data.loom')
+
+# From CellxGene H5AD
+adata = sc.read_h5ad('results/data_export/cellxgene/data_cellxgene.h5ad')
+```
+
+Load in R (Seurat):
+```r
+library(SeuratDisk)
+library(Seurat)
+
+# From H5Seurat
+obj <- LoadH5Seurat('results/data_export/seurat/data_seurat_compatible.h5ad')
+
+# From 10X MTX
+library(Seurat)
+data <- Read10X(data.dir = 'results/data_export/mtx/')
+obj <- CreateSeuratObject(counts = data)
+
+# From CSV
+counts <- read.csv('results/data_export/csv/expression_matrix.csv.gz', row.names=1)
+metadata <- read.csv('results/data_export/csv/cell_metadata.csv', row.names=1)
+```
 
 **Features:**
 - Self-contained HTML report with embedded visualizations

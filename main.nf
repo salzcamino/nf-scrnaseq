@@ -106,6 +106,13 @@ def helpMessage() {
       --communication_min_cells      Min cells per type (default: 10)
       --communication_n_permutations  Permutations for p-value (default: 100)
 
+    Data Export:
+      --export_seurat        Export Seurat-compatible H5AD (default: true)
+      --export_loom          Export Loom format (default: true)
+      --export_cellxgene     Export CellxGene-ready H5AD (default: true)
+      --export_csv           Export CSV files (default: true)
+      --export_mtx           Export 10X MTX format (default: true)
+
     HTML Report:
       --generate_report       Generate HTML report (default: true)
       --report_title          Report title (default: nf-scrnaseq Analysis Report)
@@ -222,6 +229,13 @@ Cell Communication:
   Min cells    : ${params.communication_min_cells}
   Permutations : ${params.communication_n_permutations}
 -------------------------------------------------------
+Data Export:
+  Export Seurat: ${params.export_seurat}
+  Export Loom  : ${params.export_loom}
+  Export CxGene: ${params.export_cellxgene}
+  Export CSV   : ${params.export_csv}
+  Export MTX   : ${params.export_mtx}
+-------------------------------------------------------
 HTML Report:
   Enabled      : ${params.generate_report}
   Title        : ${params.report_title}
@@ -245,6 +259,7 @@ include { TRAJECTORY_ANALYSIS } from './modules/local/trajectory.nf'
 include { CELL_COMMUNICATION } from './modules/local/cell_communication.nf'
 include { HTML_REPORT } from './modules/local/html_report.nf'
 include { SAMPLE_INTEGRATION } from './modules/local/sample_integration.nf'
+include { DATA_EXPORT } from './modules/local/data_export.nf'
 
 /*
 ========================================================================================
@@ -467,6 +482,38 @@ workflow {
         } else {
             HTML_REPORT(CLUSTERING.out.adata)
         }
+    // Data Export (final step - converts to multiple interoperable formats)
+    if (params.generate_report) {
+        // Determine which AnnData to use for export (most complete version)
+        if (params.run_annotation && params.run_diff_expression) {
+            ch_for_export = CELL_TYPE_ANNOTATION.out.adata
+        } else if (params.run_diff_expression) {
+            ch_for_export = DIFF_EXPRESSION.out.adata
+        } else {
+            ch_for_export = CLUSTERING.out.adata
+        }
+    } else {
+        // Use most recently processed data even if report generation is disabled
+        if (params.run_annotation && params.run_diff_expression) {
+            ch_for_export = CELL_TYPE_ANNOTATION.out.adata
+        } else if (params.run_diff_expression) {
+            ch_for_export = DIFF_EXPRESSION.out.adata
+        } else if (params.run_trajectory) {
+            ch_for_export = TRAJECTORY_ANALYSIS.out.adata
+        } else {
+            ch_for_export = CLUSTERING.out.adata
+        }
+    }
+
+    DATA_EXPORT(
+        ch_for_export,
+        params.export_seurat,
+        params.export_loom,
+        params.export_cellxgene,
+        params.export_csv,
+        params.export_mtx
+    )
+
     }
 }
 
