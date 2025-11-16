@@ -34,6 +34,10 @@ dependencies:
   # Doublet detection (Python-based)
   - scrublet>=0.2.3
 
+  # Cell type annotation
+  - pip:
+    - celltypist>=1.6.0
+
   # Note: R-based tools (scDblFinder, DecontX, SoupX) require manual installation
   # If you need these tools, install them separately:
   #   conda install -c conda-forge -c bioconda r-base bioconductor-scdblfinder bioconductor-celda r-soupx rpy2

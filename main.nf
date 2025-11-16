@@ -71,8 +71,9 @@ def helpMessage() {
 
     Cell type annotation:
       --run_annotation        Run cell type annotation (default: true)
-      --marker_file           Marker gene file: 'default' or path to JSON/CSV (default: default)
-      --annotation_method     Scoring method (default: score_genes)
+      --annotation_method     Method: 'celltypist' or 'marker_scoring' (default: celltypist)
+      --celltypist_model      CellTypist model name (default: Immune_All_Low.pkl)
+      --marker_file           Marker gene file for marker_scoring (default: default)
 
     Output options:
       --outdir             Output directory (default: ./results)
@@ -152,8 +153,8 @@ Diff Expression:
 -------------------------------------------------------
 Cell Type Annotation:
   Enabled      : ${params.run_annotation}
-  Marker file  : ${params.marker_file}
   Method       : ${params.annotation_method}
+  Model        : ${params.celltypist_model}
 -------------------------------------------------------
 """.stripIndent()
 
@@ -270,18 +271,20 @@ workflow {
         if (params.run_annotation) {
             CELL_TYPE_ANNOTATION(
                 DIFF_EXPRESSION.out.adata,
+                params.annotation_method,
+                params.celltypist_model,
                 params.marker_file,
-                params.cluster_key,
-                params.annotation_method
+                params.cluster_key
             )
         }
     } else if (params.run_annotation) {
         // Run annotation without DE
         CELL_TYPE_ANNOTATION(
             CLUSTERING.out.adata,
+            params.annotation_method,
+            params.celltypist_model,
             params.marker_file,
-            params.cluster_key,
-            params.annotation_method
+            params.cluster_key
         )
     }
 }

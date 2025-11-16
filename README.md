@@ -167,10 +167,29 @@ The pipeline supports the following input formats:
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `--run_annotation` | true | Run cell type annotation |
-| `--marker_file` | default | Marker gene file: 'default' uses built-in PBMC markers, or provide path to JSON/CSV |
-| `--annotation_method` | score_genes | Scoring method for cell type assignment |
+| `--annotation_method` | celltypist | Method: 'celltypist' (pre-trained models) or 'marker_scoring' |
+| `--celltypist_model` | Immune_All_Low.pkl | CellTypist model name (see below for options) |
+| `--marker_file` | default | Marker gene file for marker_scoring method |
 
-**Marker File Format:**
+**CellTypist Models:**
+
+Available pre-trained models include:
+- `Immune_All_Low.pkl` - Immune cells, low resolution (default)
+- `Immune_All_High.pkl` - Immune cells, high resolution
+- `Developing_Human_Brain.pkl` - Brain cell types
+- `Adult_Mouse_Gut.pkl` - Mouse gut cell types
+- And many more at [CellTypist models](https://www.celltypist.org/models)
+
+**Example using CellTypist:**
+```bash
+nextflow run main.nf \
+  --input data/ \
+  --annotation_method celltypist \
+  --celltypist_model Immune_All_High.pkl \
+  -profile conda
+```
+
+**Custom Marker File Format (for marker_scoring method):**
 
 JSON format:
 ```json
@@ -403,6 +422,7 @@ The pipeline uses the following key packages:
 - matplotlib >= 3.7
 - seaborn >= 0.12
 - scrublet >= 0.2.3
+- celltypist >= 1.6.0 (for pre-trained cell type annotation)
 
 **R packages (manual installation required)**:
 - r-base >= 4.2
