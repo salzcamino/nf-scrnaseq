@@ -20,7 +20,6 @@ dependencies:
   # Visualization
   - matplotlib-base>=3.7
   - seaborn>=0.12
-  - plotly>=5.14
 
   # File I/O
   - h5py>=3.8
@@ -32,15 +31,10 @@ dependencies:
   - numba>=0.57
   - umap-learn>=0.5
 
-  # Doublet detection
+  # Doublet detection (Python-based)
   - scrublet>=0.2.3
 
-  # R and R packages
-  - r-base>=4.2
-  - r-essentials
-  - bioconductor-singlecellexperiment
-  - bioconductor-scdblfinder
-  - bioconductor-celda  # Contains DecontX
-  - r-soupx
-  - r-seurat
-  - rpy2>=3.5  # Python-R interface
+  # Note: R-based tools (scDblFinder, DecontX, SoupX) require manual installation
+  # If you need these tools, install them separately:
+  #   conda install -c conda-forge -c bioconda r-base bioconductor-scdblfinder bioconductor-celda r-soupx rpy2
+  # These are disabled by default due to long installation times and potential dependency conflicts
