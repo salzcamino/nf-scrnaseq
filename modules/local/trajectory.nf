@@ -259,12 +259,19 @@ process TRAJECTORY_ANALYSIS {
                       node_size_scale=1.5, edge_width_scale=1.0)
             ax.set_title(f'PAGA Graph ({cluster_key_param})')
 
-            # PAGA on UMAP
+            # UMAP colored by cluster (as alternative to paga_compare)
             ax = axes[1]
             if 'X_umap' in adata.obsm:
-                sc.pl.paga_compare(adata, ax=ax, show=False, frameon=False,
-                                   legend_loc='on data', legend_fontsize=8)
-                ax.set_title('PAGA Overlaid on UMAP')
+                for cluster in adata.obs[cluster_key_param].unique():
+                    mask = adata.obs[cluster_key_param] == cluster
+                    ax.scatter(adata.obsm['X_umap'][mask, 0],
+                              adata.obsm['X_umap'][mask, 1],
+                              s=10, alpha=0.7, label=str(cluster))
+                ax.set_xlabel('UMAP1')
+                ax.set_ylabel('UMAP2')
+                ax.set_title(f'UMAP by {cluster_key_param}')
+                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left',
+                         title=cluster_key_param, fontsize=8, markerscale=2)
             else:
                 ax.text(0.5, 0.5, 'UMAP not available',
                        ha='center', va='center')
