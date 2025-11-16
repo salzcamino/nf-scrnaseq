@@ -649,6 +649,348 @@ results/
         └── pseudotime.png        # Pseudotime on UMAP
 ```
 
+## Containerization
+
+The pipeline supports multiple containerization approaches: Docker, Singularity, and Conda. This allows reproducible execution across different computing environments.
+
+### Docker Setup
+
+#### Prerequisites
+
+- Docker >= 20.10
+- At least 2GB free disk space
+- Docker daemon running
+
+#### Building the Docker Image
+
+Build the Docker image with all Python dependencies:
+
+```bash
+# Build the image with the default tag
+docker build -t nf-scrnaseq:latest .
+
+# Or with a custom tag and registry
+docker build -t your-registry/nf-scrnaseq:1.0 .
+```
+
+The Dockerfile includes:
+- Base Ubuntu 22.04 image
+- Python 3.10 with all system dependencies
+- All Python packages: scanpy, pandas, numpy, matplotlib, seaborn, leidenalg, harmonypy, scanorama, bbknn, cellphonedb, gseapy, scrublet, celltypist, and more
+- Pre-configured working directory
+
+#### Pushing to a Docker Registry
+
+To share your image, push it to a registry (Docker Hub, Quay.io, etc.):
+
+```bash
+# Login to Docker Hub
+docker login
+
+# Push the image
+docker push your-username/nf-scrnaseq:latest
+```
+
+Then modify `nextflow.config` Docker profile:
+```groovy
+docker {
+    docker.enabled = true
+    process.container = 'your-username/nf-scrnaseq:latest'
+}
+```
+
+#### Running with Docker Profile
+
+```bash
+# Basic run
+nextflow run main.nf --input data/ -profile docker
+
+# With custom parameters
+nextflow run main.nf \
+  --input data/ \
+  --integration_method harmony \
+  --n_top_genes 3000 \
+  -profile docker
+
+# Test run with Docker
+nextflow run main.nf -profile test,docker
+
+# With custom Docker options (specify container registry)
+nextflow run main.nf --input data/ -profile docker
+```
+
+#### Docker-Specific Configurations
+
+The Docker profile in `nextflow.config` includes:
+- User ID/GID mapping: `-u $(id -u):$(id -g)` - runs with your user permissions
+- Temp directory: `/tmp` - uses container's temp space
+- Mount flags: `z` - SELinux compatibility
+- Auto-pull on first run
+
+#### Troubleshooting Docker
+
+**Issue**: "Cannot connect to Docker daemon"
+```bash
+# Ensure Docker is running
+sudo systemctl start docker  # Linux
+open -a Docker              # macOS
+```
+
+**Issue**: "Insufficient space"
+```bash
+# Clean up unused Docker resources
+docker system prune -a
+```
+
+**Issue**: Permission denied errors
+```bash
+# Run with appropriate permissions (or add user to docker group)
+sudo usermod -aG docker $USER
+newgrp docker
+```
+
+### Singularity Setup
+
+#### Prerequisites
+
+- Singularity >= 3.0 (or Apptainer on newer systems)
+- No Docker daemon required
+- Useful for HPC environments with restricted privileges
+
+#### Option 1: Using Pre-built Galaxy Image
+
+The easiest approach - uses an existing scanpy image from Galaxy:
+
+```bash
+# Run directly (pulls from Galaxy automatically)
+nextflow run main.nf --input data/ -profile singularity
+```
+
+This uses: `https://depot.galaxyproject.org/singularity/scanpy:1.9.3--pyhdfd78af_0`
+
+#### Option 2: Convert Docker Image to Singularity
+
+Build a Singularity image from your Docker image:
+
+```bash
+# Method 1: From Docker Hub (requires Docker)
+singularity build nf-scrnaseq.sif docker://nf-scrnaseq:latest
+
+# Method 2: From local Docker image (using docker daemon)
+singularity build nf-scrnaseq.sif docker-daemon://nf-scrnaseq:latest
+
+# Method 3: From Dockerfile directly
+singularity build nf-scrnaseq.sif Dockerfile
+```
+
+Then update `nextflow.config`:
+```groovy
+singularity_local {
+    singularity.enabled = true
+    process.container = 'nf-scrnaseq.sif'
+}
+```
+
+Run with:
+```bash
+nextflow run main.nf --input data/ -profile singularity_local
+```
+
+#### Option 3: Build from Definition File
+
+Create a Singularity definition file (`.def`) and build:
+
+```bash
+singularity build nf-scrnaseq.sif Singularity.def
+```
+
+#### Running with Singularity Profile
+
+```bash
+# Using pre-built Galaxy image (default)
+nextflow run main.nf --input data/ -profile singularity
+
+# Using local Singularity image
+nextflow run main.nf --input data/ -profile singularity_local
+
+# Test run with Singularity
+nextflow run main.nf -profile test,singularity
+```
+
+#### Singularity-Specific Configurations
+
+The Singularity profile includes:
+- Auto-mount: Automatically mount home and work directories
+- Cache directory: `~/.singularity-cache` for downloaded images
+- Pull timeout: 20 minutes for remote images
+- No Docker requirement
+
+#### HPC Cluster Setup (Singularity)
+
+For HPC systems, Singularity is often required instead of Docker:
+
+```bash
+# Load Singularity module (HPC-specific)
+module load singularity
+
+# Run on HPC with job submission
+nextflow run main.nf \
+  --input /path/to/data \
+  -profile singularity \
+  -executor slurm \
+  -with-slurm
+```
+
+Add to `nextflow.config` for HPC:
+```groovy
+executor {
+    name = 'slurm'
+    queueSize = 20
+    submitRateLimit = '1 sec'
+}
+```
+
+### Conda Setup (Alternative to Containers)
+
+If containers aren't available, use Conda:
+
+```bash
+# Conda will create environment automatically
+nextflow run main.nf --input data/ -profile conda
+
+# First run takes longer; subsequent runs use cached environment
+nextflow run main.nf --input data/ -profile conda  # Much faster
+
+# Clean conda cache (if needed)
+rm -rf ~/.nextflow-conda-cache
+```
+
+#### Conda Cache Management
+
+```bash
+# Set custom conda cache location
+export NXF_CONDA_CACHEDIR=/path/to/cache
+nextflow run main.nf -profile conda
+```
+
+### Comparing Execution Profiles
+
+| Feature | Docker | Singularity | Conda |
+|---------|--------|-------------|-------|
+| Setup time | ~5-10 min | 2-5 min* | ~20-30 min (first run) |
+| Runtime overhead | ~5% | ~2-3% | ~0% |
+| HPC friendly | Sometimes | Yes | Yes |
+| Privileges needed | Daemon access | User-level | User-level |
+| Reproducibility | Very high | Very high | High |
+| Portability | Excellent | Excellent | Good |
+| Container size | 1-2 GB | 1-2 GB | Variable |
+
+*If using pre-built Galaxy image; custom image build takes longer
+
+### Performance Considerations
+
+#### Docker
+- Best for local development and CI/CD
+- Supports layer caching for faster rebuilds
+- Good performance on Linux hosts
+- Overhead on macOS/Windows (VM-based)
+
+#### Singularity
+- Excellent for HPC clusters
+- No daemon overhead
+- Fast image pull and execution
+- Growing support in cloud environments
+
+#### Conda
+- Slowest first run (environment creation)
+- Fastest subsequent runs
+- Useful when containers unavailable
+- Better for interactive debugging
+
+### Container Customization
+
+#### Adding New Python Packages
+
+Edit `Dockerfile`:
+```dockerfile
+RUN pip install --no-cache-dir \
+    new-package==1.0.0
+```
+
+Rebuild:
+```bash
+docker build -t nf-scrnaseq:latest .
+```
+
+#### Using Custom Container Images
+
+#### Docker Hub
+```groovy
+docker {
+    process.container = 'your-username/nf-scrnaseq:v2.0'
+}
+```
+
+#### Private Registry
+```groovy
+docker {
+    docker.registry = 'private.registry.com'
+    process.container = 'private.registry.com/nf-scrnaseq:latest'
+}
+```
+
+#### Quay.io
+```groovy
+docker {
+    docker.registry = 'quay.io'
+    process.container = 'quay.io/your-org/nf-scrnaseq:latest'
+}
+```
+
+### Environment Variables
+
+Inside containers, the following are set:
+```bash
+PYTHONNOUSERSITE=1        # Isolate from system Python
+PYTHONUNBUFFERED=1        # Real-time output
+NXF_CONDA_CACHEDIR        # Conda cache (conda profile)
+```
+
+### Volumes and Mounts
+
+Data is automatically available in containers:
+- Input data: Mounted from host
+- Output directory: Mounted from host
+- Temp files: Used in container's `/tmp`
+
+No need to explicitly mount volumes - Nextflow handles this.
+
+### Security Considerations
+
+#### Data Privacy
+- Containers run in isolated filesystem namespaces
+- Data is not persisted in container layers
+- Clean up containers after runs
+
+#### Root Privileges
+Docker profile runs with user ID mapping:
+```bash
+docker.runOptions = '-u $(id -u):$(id -g)'
+```
+
+Files created are owned by your user, not root.
+
+#### Sensitive Data
+Never hardcode credentials in Dockerfile. Use:
+```bash
+# Pass as environment variables
+nextflow run main.nf -e API_KEY=xxx
+
+# Or use .env files
+export API_KEY=xxx
+nextflow run main.nf
+```
+
 ## Profiles
 
 The pipeline supports multiple execution profiles:
